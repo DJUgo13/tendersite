@@ -1,0 +1,70 @@
+{% extends 'core/base.html' %}
+{% block title %}Руководство — {{ tender.name }}{% endblock %}
+{% block breadcrumb_items %} > <a href="{% url 'leadership_dashboard' %}">Руководство</a> > <span>{{ tender.name
+    }}</span>{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-start align-items-md-center justify-content-between flex-column flex-md-row gap-2 mb-4">
+    <div>
+        <h1 class="h3 mb-1"><i class="bi bi-clipboard-data me-2"></i>{{ tender.name }}</h1>
+        <div class="text-muted">
+            Статус: <span class="badge bg-secondary">Завершён</span>
+            {% if tender.end_time %}<span class="ms-2">Закрыт: <strong>{{ tender.end_time|date:"d.m.Y H:i"
+                    }}</strong></span>{% endif %}
+        </div>
+        {% if tender.description %}
+        <div class="text-muted mt-2">{{ tender.description }}</div>
+        {% endif %}
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'leadership_tender_report' tender.id %}" class="btn btn-outline-primary">
+            <i class="bi bi-file-earmark-excel me-1"></i>Excel (Детальный)
+        </a>
+        <a href="{% url 'leadership_tender_matrix_report' tender.id %}" class="btn btn-outline-success">
+            <i class="bi bi-table me-1"></i>Матрица (Excel)
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-transparent">
+        <div class="fw-semibold"><i class="bi bi-list-check me-2"></i>Результаты по направлениям</div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Направление</th>
+                        <th>Объём</th>
+                        <th class="d-none d-lg-table-cell">Старт</th>
+                        <th>Финал</th>
+                        <th>Победитель</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in directions %}
+                    <tr>
+                        <td><strong>{{ d.city_name }}</strong></td>
+                        <td>{{ d.volume }}</td>
+                        <td class="d-none d-lg-table-cell">{{ d.start_price }} ₽</td>
+                        <td>
+                            {% if d.final_price %}<strong class="text-success">{{ d.final_price }} ₽</strong>{% else
+                            %}-{% endif %}
+                        </td>
+                        <td>
+                            {% if d.winner %}{{ d.winner.name }}{% else %}<span class="text-muted">-</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<a href="{% url 'leadership_dashboard' %}" class="btn btn-outline-secondary mt-3">
+    <i class="bi bi-arrow-left me-2"></i>Назад
+</a>
+
+{% endblock %}

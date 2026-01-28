@@ -1,0 +1,538 @@
+{% extends 'core/base.html' %} {% block title %}Тендер: {{ tender.name }}{% endblock %} {% block breadcrumb_items %} >
+<a href="{% url 'manager_dashboard' %}">Тендеры</a> > <span>{{ tender.name }}</span>{% endblock %} {% block content %}
+<style>
+    /* FAB кнопка для мобильных */
+
+    .fab-button {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background-color: var(--gf-primary);
+        color: white;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0, 102, 204, 0.4);
+        z-index: 1000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        transition: all 0.3s;
+    }
+
+    .fab-button:hover {
+        background-color: var(--gf-primary-dark);
+        transform: scale(1.1);
+        box-shadow: 0 6px 16px rgba(0, 102, 204, 0.5);
+    }
+
+    @media (max-width: 767px) {
+        .fab-button {
+            display: flex;
+        }
+    }
+
+    /* Мобильные карточки направлений */
+
+    .direction-card {
+        border: 2px solid var(--gf-border);
+        border-radius: 8px;
+        margin-bottom: 15px;
+        transition: all 0.3s;
+    }
+
+    .direction-card.winner {
+        border-color: #28a745;
+        background-color: #d4edda;
+    }
+
+    .direction-card:hover {
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .best-price-mobile {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #28a745;
+    }
+
+    /* Swipe navigation для мобильных */
+
+    @media (max-width: 767px) {
+        .directions-container {
+            position: relative;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scroll-snap-type: x mandatory;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .directions-container::-webkit-scrollbar {
+            display: none;
+        }
+
+        .direction-card {
+            scroll-snap-align: start;
+            min-width: calc(100% - 30px);
+            margin-right: 15px;
+        }
+
+        .swipe-indicator {
+            text-align: center;
+            padding: 10px;
+            color: var(--gf-text-light);
+            font-size: 12px;
+        }
+    }
+</style>
+
+<h1 class="h3 h-md-1">{{ tender.name }}</h1>
+
+{# Бейдж статуса тендера #}
+<p class="mb-3 mb-md-4">
+    Статус:
+    <span
+        class="badge {% if tender.status == 'open' %}bg-success{% elif tender.status == 'closed' %}bg-secondary{% else %}bg-warning{% endif %}">
+        {{ tender.get_status_display }}
+    </span>
+</p>
+
+{# Таймер до окончания тендера #} {% if tender.status == 'open' %} {% if tender.end_time %}
+<div class="alert alert-info mb-3 mb-md-4">
+    <i class="bi bi-clock me-2"></i> До окончания торгов осталось:
+    <strong><span id="tender-timer" data-end-time="{{ tender.end_time|date:'c' }}">...</span></strong>
+</div>
+{% else %}
+<div class="alert alert-warning mb-3 mb-md-4">
+    <i class="bi bi-clock me-2"></i> Время окончания торгов не установлено
+</div>
+{% endif %} {% endif %} {# Уведомление о победе #} {% if tender.status == 'closed' and user_won_any %}
+<div class="alert alert-success mb-3 mb-md-4">
+    <h5 class="alert-heading">
+        <i class="bi bi-trophy-fill me-2"></i>Поздравляем! Ваша компания выиграла тендер по следующим направлениям:
+    </h5>
+    <ul class="mb-0">
+        {% for d in user_won_directions %}
+        <li>
+            <strong>{{ d.city_name }}</strong> — финальная цена: <strong>{{ d.final_price }} ₽</strong>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% elif tender.status == 'closed' %}
+<div class="alert alert-secondary mb-3 mb-md-4">
+    <i class="bi bi-info-circle me-2"></i>Тендер завершён. Ставки больше не принимаются.
+</div>
+{% endif %}
+
+<!-- Мобильные карточки (только на мобильных) -->
+<div class="d-md-none">
+    <div class="swipe-indicator mb-2">
+        <i class="bi bi-arrow-left-right me-1"></i>Свайпните для просмотра направлений
+    </div>
+    <div class="directions-container">
+        {% for direction in directions %}
+        <div class="direction-card {% if direction.is_winner_for_me %}winner{% endif %}">
+            <div class="card-body p-3">
+                <h5 class="card-title mb-3">
+                    <i class="bi bi-geo-alt-fill me-2 text-primary"></i>{{ direction.city_name }}
+                </h5>
+
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">Текущая лучшая цена:</span>
+                        <span id="best-price-mobile-{{ direction.id }}" hx-get="{% url 'get_best_price' direction.id %}"
+                            hx-trigger="every 30s" hx-swap="innerHTML" class="best-price-mobile">
+                            {% include 'core/partials/best_price.html' with best_price=direction.current_best_price %}
+                        </span>
+                    </div>
+
+                    <div class="d-flex gap-2 flex-wrap mb-2">
+                        <span id="rebid-badge-{{ direction.id }}" class="badge bg-warning text-dark d-none">
+                            <i class="bi bi-lightning-charge me-1"></i>Переторжка: <span
+                                id="rebid-timer-{{ direction.id }}"></span>
+                        </span>
+                        <span id="final-badge-{{ direction.id }}" class="badge bg-info text-dark d-none">
+                            <i class="bi bi-hourglass-split me-1"></i>Финал: <span
+                                id="final-timer-{{ direction.id }}"></span>
+                        </span>
+                        <span id="closed-badge-{{ direction.id }}" class="badge bg-secondary d-none">
+                            <i class="bi bi-lock me-1"></i>Закрыто
+                        </span>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">Объём:</span>
+                        <strong>{{ direction.volume }} машин</strong>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small">Стартовая цена:</span>
+                        <span>{{ direction.start_price }} ₽</span>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted small">Моя ставка:</span>
+                        {% if direction.my_bid_price %}
+                        <strong>{{ direction.my_bid_price }} ₽</strong>
+                        {% if direction.is_winner_for_me and tender.status == 'closed' %}
+                        <span class="badge bg-success ms-2">Вы победили</span>
+                        {% endif %}
+                        {% else %}
+                        <span class="text-muted">Нет ставки</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if tender.status == 'open' %}
+                <button class="btn btn-primary w-100 mt-2" data-bs-toggle="modal" data-bs-target="#bidModal"
+                    data-direction-id="{{ direction.id }}" data-direction-name="{{ direction.city_name }}"
+                    data-start-price="{{ direction.start_price|stringformat:" .2f" }}"
+                    data-best-price="{{ direction.current_best_price|default:direction.start_price|stringformat:" .2f"
+                    }}" data-min-step="{{ direction.min_step|stringformat:" .2f" }}"
+                    data-server-time="{{ server_time|date:'c' }}" data-end-time="{{ direction.end_time|date:'c' }}">
+                    <i class="bi bi-cash-coin me-1"></i>Сделать ставку
+                </button> {% else %}
+                <span class="text-muted d-block text-center mt-2">Торги завершены</span> {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Таблица для планшетов и десктопов -->
+<div class="d-none d-md-block">
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th>Направление</th>
+                    <th>Объём (машин)</th>
+                    <th>Стартовая цена</th>
+                    <th>Текущая лучшая цена</th>
+                    <th>Моя ставка</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for direction in directions %}
+                <tr class="{% if direction.is_winner_for_me %}table-success{% endif %}">
+                    <td>{{ direction.city_name }}</td>
+                    <td>{{ direction.volume }}</td>
+                    <td>{{ direction.start_price }} ₽</td>
+                    <td id="best-price-{{ direction.id }}" hx-get="{% url 'get_best_price' direction.id %}"
+                        hx-trigger="every 30s" hx-swap="innerHTML">
+                        <span id="best-price-value-{{ direction.id }}">
+                            {% include 'core/partials/best_price.html' with best_price=direction.current_best_price %}
+                        </span>
+                        <div class="mt-2 d-flex gap-2 flex-wrap">
+                            <span id="rebid-badge-desktop-{{ direction.id }}" class="badge bg-warning text-dark d-none">
+                                <i class="bi bi-lightning-charge me-1"></i>Переторжка: <span
+                                    id="rebid-timer-desktop-{{ direction.id }}"></span>
+                            </span>
+                            <span id="final-badge-desktop-{{ direction.id }}" class="badge bg-info text-dark d-none">
+                                <i class="bi bi-hourglass-split me-1"></i>Финал: <span
+                                    id="final-timer-desktop-{{ direction.id }}"></span>
+                            </span>
+                            <span id="closed-badge-desktop-{{ direction.id }}" class="badge bg-secondary d-none">
+                                <i class="bi bi-lock me-1"></i>Закрыто
+                            </span>
+                        </div>
+                    </td>
+                    <td>
+                        {% if direction.my_bid_price %}
+                        <strong>{{ direction.my_bid_price }} ₽</strong>
+                        {% if direction.is_winner_for_me and tender.status == 'closed' %}
+                        <span class="badge bg-success ms-2">Вы победили</span>
+                        {% endif %}
+                        {% else %}
+                        <span class="text-muted">Нет ставки</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if tender.status == 'open' %}
+                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#bidModal"
+                            data-direction-id="{{ direction.id }}" data-direction-name="{{ direction.city_name }}"
+                            data-start-price="{{ direction.start_price|stringformat:" .2f" }}"
+                            data-best-price="{{ direction.current_best_price|default:direction.start_price|stringformat:"
+                            .2f" }}" data-min-step="{{ direction.min_step|stringformat:" .2f" }}"
+                            data-server-time="{{ server_time|date:'c' }}"
+                            data-end-time="{{ direction.end_time|date:'c' }}">
+                            Заявить ставку
+                        </button> {% else %}
+                        <span class="text-muted">Торги завершены</span> {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<a href="{% url 'manager_dashboard' %}" class="btn btn-outline-secondary mt-3">
+    <i class="bi bi-arrow-left me-2"></i>Назад к списку тендеров
+</a>
+
+<!-- FAB кнопка для быстрого доступа к форме ставки (только на мобильных) -->
+{% if tender.status == 'open' %}
+<button class="fab-button" data-bs-toggle="modal" data-bs-target="#bidModal" title="Сделать ставку">
+    <i class="bi bi-plus-lg"></i>
+</button> {% endif %}
+
+<!-- Модальное окно для ставки (fullscreen на мобильных) -->
+<div class="modal fade" id="bidModal" tabindex="-1">
+    <div class="modal-dialog modal-fullscreen-sm-down modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-cash-coin me-2"></i>Сделать ставку</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'submit_bid' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p class="mb-3">
+                        <strong>Направление:</strong> <span id="modal-direction-name"></span>
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Ваша цена (руб.)</label>
+                        <div class="input-group input-group-lg">
+                            <input type="number" name="price" class="form-control form-control-lg" inputmode="decimal"
+                                step="0.01" min="0" required placeholder="Введите цену" id="bid-price-input"
+                                autocomplete="off">
+                            <span class="input-group-text">₽</span>
+                        </div>
+                        <input type="hidden" name="direction_id" id="modal-direction-id">
+
+                        <!-- Быстрые кнопки для изменения цены -->
+                        <div class="d-flex gap-2 mt-3">
+                            <button type="button" class="btn btn-outline-secondary flex-fill"
+                                onclick="adjustPrice(-0.05)" style="min-height: 44px;">
+                                <i class="bi bi-dash-circle me-1"></i>-5%
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary flex-fill"
+                                onclick="adjustPrice(-0.10)" style="min-height: 44px;">
+                                <i class="bi bi-dash-circle me-1"></i>-10%
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary flex-fill" onclick="resetPrice()"
+                                style="min-height: 44px;">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>Сброс
+                            </button>
+                        </div>
+
+                        <small class="text-muted d-block mt-2">
+                            <span id="price-hint"></span>
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="min-height: 44px;">
+                        <i class="bi bi-x-circle me-1"></i>Отмена
+                    </button>
+                    <button type="submit" class="btn btn-primary" style="min-height: 44px;">
+                        <i class="bi bi-check-circle me-1"></i>Подтвердить ставку
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // JavaScript для работы с торгами (SSE, модальное окно, таймеры)
+    (function () {
+        const bidModal = document.getElementById('bidModal');
+        const priceInput = document.getElementById('bid-price-input');
+        const hint = document.getElementById('price-hint');
+
+        // Глобальное состояние (внутри этого замыкания)
+        const state = {
+            activeDirectionId: null,
+            bestPrice: null,
+            startPrice: null
+        };
+
+        // Экспонируем функции для onclick в HTML
+        window.adjustPrice = function (percent) {
+            if (!state.bestPrice) return;
+            const currentVal = parseFloat(priceInput.value) || state.bestPrice;
+            const newPrice = parseFloat((currentVal * (1 + percent)).toFixed(2));
+            if (newPrice > 0 && newPrice <= state.bestPrice) {
+                priceInput.value = newPrice.toFixed(2);
+                updatePriceHint();
+            }
+        };
+
+        window.resetPrice = function () {
+            priceInput.value = '';
+            updatePriceHint();
+        };
+
+        function updatePriceHint() {
+            if (!priceInput || !hint) return;
+            const price = parseFloat(priceInput.value);
+            if (!price) {
+                hint.textContent = 'Текущая лучшая цена: ' + (state.bestPrice ? state.bestPrice.toFixed(2) : '---') + ' ₽';
+                return;
+            }
+            if (price > state.bestPrice) {
+                hint.innerHTML = '<span class="text-danger">Цена должна быть не выше ' + state.bestPrice.toFixed(2) + ' ₽</span>';
+            } else {
+                const diff = ((state.bestPrice - price) / state.bestPrice * 100).toFixed(1);
+                hint.innerHTML = 'Экономия: ' + (state.bestPrice - price).toFixed(2) + ' ₽ (' + diff + '%)';
+            }
+        }
+
+        if (bidModal) {
+            bidModal.addEventListener('show.bs.modal', function (event) {
+                const button = event.relatedTarget;
+                state.activeDirectionId = button.getAttribute('data-direction-id');
+                state.startPrice = parseFloat(button.getAttribute('data-start-price'));
+                state.bestPrice = parseFloat(button.getAttribute('data-best-price')) || state.startPrice;
+
+                document.getElementById('modal-direction-id').value = state.activeDirectionId;
+                document.getElementById('modal-direction-name').textContent = button.getAttribute('data-direction-name');
+
+                priceInput.value = '';
+                priceInput.placeholder = 'Макс: ' + state.bestPrice.toFixed(2) + ' ₽';
+                updatePriceHint();
+            });
+
+            bidModal.addEventListener('shown.bs.modal', function () {
+                priceInput.focus();
+                if (/Mobile|Android|iPhone|iPad/.test(navigator.userAgent)) {
+                    setTimeout(() => priceInput.focus(), 300);
+                }
+            });
+
+            bidModal.addEventListener('hidden.bs.modal', function () {
+                state.activeDirectionId = null;
+            });
+        }
+
+        if (priceInput) {
+            priceInput.addEventListener('input', updatePriceHint);
+        }
+
+        // SSE обновление цен и таймеров
+        (function () {
+            if (!window.EventSource) return;
+            const tenderId = "{{ tender.id }}";
+            const es = new EventSource("{% url 'sse_tender_prices' tender.id %}");
+
+            function fmtCountdown(endIso) {
+                if (!endIso) return '';
+                const end = new Date(endIso).getTime();
+                const now = Date.now();
+                let diff = Math.max(0, end - now);
+                const s = Math.floor(diff / 1000) % 60;
+                const m = Math.floor(diff / 60000) % 60;
+                const h = Math.floor(diff / 3600000);
+                return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            }
+
+            es.onmessage = function (event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (!data || data.type !== 'prices') return;
+
+                    data.directions.forEach((d) => {
+                        // Обновляем цены в таблице/карточках
+                        const desktopValueEl = document.getElementById(`best-price-value-${d.id}`);
+                        const mobileEl = document.getElementById(`best-price-mobile-${d.id}`);
+                        if (desktopValueEl) desktopValueEl.innerHTML = `<span class="best-price">${d.best_price} ₽</span>`;
+                        if (mobileEl) mobileEl.textContent = `${d.best_price} ₽`;
+
+                        // Синхронизация с открытым модальным окном
+                        if (state.activeDirectionId == d.id) {
+                            state.bestPrice = parseFloat(d.best_price);
+                            updatePriceHint();
+                        }
+
+                        // Обновляем бейджи и таймеры
+                        const rebidBadge = document.getElementById(`rebid-badge-${d.id}`);
+                        const rebidTimer = document.getElementById(`rebid-timer-${d.id}`);
+                        const finalBadge = document.getElementById(`final-badge-${d.id}`);
+                        const finalTimer = document.getElementById(`final-timer-${d.id}`);
+                        const closedBadge = document.getElementById(`closed-badge-${d.id}`);
+                        const rebidBadgeD = document.getElementById(`rebid-badge-desktop-${d.id}`);
+                        const rebidTimerD = document.getElementById(`rebid-timer-desktop-${d.id}`);
+                        const finalBadgeD = document.getElementById(`final-badge-desktop-${d.id}`);
+                        const finalTimerD = document.getElementById(`final-timer-desktop-${d.id}`);
+                        const closedBadgeD = document.getElementById(`closed-badge-desktop-${d.id}`);
+
+                        const isClosed = !!d.winner_id;
+                        const isRebid = !!d.is_in_rebidding && !!d.rebidding_end_time;
+                        const hasFinal = !!d.final_timer_end;
+
+                        if (closedBadge) closedBadge.classList.toggle('d-none', !isClosed);
+                        if (closedBadgeD) closedBadgeD.classList.toggle('d-none', !isClosed);
+                        if (rebidBadge) rebidBadge.classList.toggle('d-none', !isRebid);
+                        if (rebidBadgeD) rebidBadgeD.classList.toggle('d-none', !isRebid);
+                        if (rebidTimer) rebidTimer.textContent = fmtCountdown(d.rebidding_end_time);
+                        if (rebidTimerD) rebidTimerD.textContent = fmtCountdown(d.rebidding_end_time);
+                        if (finalBadge) finalBadge.classList.toggle('d-none', !hasFinal || isClosed);
+                        if (finalBadgeD) finalBadgeD.classList.toggle('d-none', !hasFinal || isClosed);
+                        if (finalTimer) finalTimer.textContent = fmtCountdown(d.final_timer_end);
+                        if (finalTimerD) finalTimerD.textContent = fmtCountdown(d.final_timer_end);
+                    });
+                } catch (e) { console.error("SSE Error:", e); }
+            };
+        })();
+
+        // Таймер до окончания тендера
+        const timerElement = document.getElementById('tender-timer');
+        if (timerElement) {
+            const endTimeStr = timerElement.getAttribute('data-end-time');
+            const endTime = new Date(endTimeStr).getTime();
+
+            function updateTenderTimer() {
+                const now = new Date().getTime();
+                const diff = endTime - now;
+                if (diff <= 0) {
+                    timerElement.textContent = 'Торги завершены';
+                    setTimeout(() => window.location.reload(), 1000);
+                    return;
+                }
+                const parts = [];
+                const s = Math.floor(diff / 1000) % 60;
+                const m = Math.floor(diff / 60000) % 60;
+                const h = Math.floor(diff / 3600000) % 24;
+                const d = Math.floor(diff / 86400000);
+                if (d > 0) parts.push(d + 'д');
+                parts.push(String(h).padStart(2, '0') + 'ч');
+                parts.push(String(m).padStart(2, '0') + 'м');
+                parts.push(String(s).padStart(2, '0') + 'с');
+                timerElement.textContent = parts.join(' ');
+            }
+            updateTenderTimer();
+            setInterval(updateTenderTimer, 1000);
+        }
+
+        // Swipe navigation для мобильных карточек направлений
+        (function () {
+            if (!/Mobile|Android|iPhone|iPad/.test(navigator.userAgent)) return;
+            const container = document.querySelector('.directions-container');
+            if (!container) return;
+            let startX = 0;
+            let scrollLeft = 0;
+            let isDown = false;
+            container.addEventListener('touchstart', (e) => {
+                isDown = true;
+                startX = e.touches[0].pageX - container.offsetLeft;
+                scrollLeft = container.scrollLeft;
+            });
+            container.addEventListener('touchend', () => isDown = false);
+            container.addEventListener('touchmove', (e) => {
+                if (!isDown) return;
+                const x = e.touches[0].pageX - container.offsetLeft;
+                const walk = (x - startX) * 2;
+                container.scrollLeft = scrollLeft - walk;
+            });
+        })();
+    })();
+</script>
+{% endblock %}

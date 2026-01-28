@@ -1,0 +1,18 @@
+EMAIL_HOST_USER in settings: usnvlsnvo@mail.ru
+EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+
+--- USERS ---
+User: admin | Email: ''
+User: admin2 | Email: 'admin2@example.com'
+User: prog1 | Email: 'usnvlsnvo@mail.ru'
+User: user1 | Email: 'm2315435@edu.misis.ru'
+User: direct1 | Email: ''
+
+--- COMPANIES ---
+Company: SBER_chic | User: admin | UserEmail: ''
+Company: compani1 | User: user1 | UserEmail: 'm2315435@edu.misis.ru'
+Company: top | User: direct1 | UserEmail: ''
+
+--- RECIPIENT CHECKS ---
+Users with email 'usnvlsnvo@mail.ru': ['prog1']
+Companies linked to 'usnvlsnvo@mail.ru': []

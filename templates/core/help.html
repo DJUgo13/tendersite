@@ -1,0 +1,86 @@
+{% extends 'core/base.html' %}
+{% block title %}Помощь - Тендерная площадка{% endblock %}
+{% block breadcrumb_items %} > <span>Помощь</span>{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-md-10 col-lg-8">
+        <h1 class="h3 mb-4"><i class="bi bi-question-circle me-2"></i>Помощь</h1>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-transparent py-3">
+                <h5 class="mb-0">Добро пожаловать в систему тендеров</h5>
+            </div>
+            <div class="card-body">
+                <p>Данная платформа предназначена для проведения тендеров на грузоперевозки. Вы можете участвовать в
+                    открытых аукционах, предлагать свои ставки и отслеживать результаты в режиме реального времени.</p>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-transparent">
+                <h5 class="mb-0"><i class="bi bi-lightning-charge me-2 text-warning"></i>Как участвовать в торгах</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h6>1. Выберите тендер</h6>
+                    <p class="text-muted">На главной странице отображается список всех активных (открытых) тендеров.
+                        Нажмите "Открыть", чтобы перейти к деталям аукциона и направлениям.</p>
+                </div>
+
+                <div class="mb-4">
+                    <h6>2. Изучите направления</h6>
+                    <p class="text-muted">Тендер может состоять из нескольких направлений (городов). Для каждого
+                        направления указан объём (количество машин) и стартовая цена.</p>
+                </div>
+
+                <div class="mb-4">
+                    <h6>3. Сделайте ставку</h6>
+                    <p class="text-muted">Для участия нажмите кнопку <span class="badge bg-primary">Сделать
+                            ставку</span>. Введите цену, которую вы готовы предложить. Ваша цена должна быть
+                        <strong>ниже или равна</strong> текущей лучшей цене.</p>
+                    <div class="alert alert-info py-2">
+                        <i class="bi bi-info-circle me-2"></i>Вы можете использовать кнопки быстрой ставки
+                        <strong>-1%</strong>, <strong>-3%</strong> или <strong>-5%</strong> для оперативного снижения
+                        цены.
+                    </div>
+                </div>
+
+                <div>
+                    <h6>4. Следите за ходом торгов</h6>
+                    <p class="text-muted">Система обновляет цены автоматически каждые несколько секунд. Если вашу ставку
+                        перебили, вы увидите это на экране и сможете сделать новую ставку.</p>
+                    <p class="text-muted">Если вы сделали лучшую ставку, она будет помечена как <span
+                            class="text-success fw-bold">Ваша ставка</span>.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-transparent">
+                <h5 class="mb-0"><i class="bi bi-stopwatch me-2 text-danger"></i>Правила завершения</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-3">
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        <strong>Финальный таймер:</strong> Каждое направление имеет свой таймер. Если в последние минуты
+                        поступает новая ставка, таймер продлевается, давая возможность другим участникам ответить.
+                    </li>
+                    <li>
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        <strong>Переторжка:</strong> Если две компании предложили одинаковую минимальную цену, система
+                        может объявить режим "Переторжки" на 5 минут для выявления победителя.
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="text-center text-muted small mt-4">
+            <p>При возникновении технических вопросов обращайтесь в поддержку:<br>
+                <a href="mailto:support@tendersite.ru">support@tendersite.ru</a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

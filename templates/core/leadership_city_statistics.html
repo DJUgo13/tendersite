@@ -1,0 +1,154 @@
+{% extends 'core/base.html' %}
+{% load core_extras %}
+{% block title %}Руководство — Статистика по городам{% endblock %}
+{% block breadcrumb_items %}
+> <a href="{% url 'leadership_dashboard' %}">Руководство</a>
+> <a href="{% url 'leadership_statistics' %}">Статистика</a>
+> <span>Статистика по городам</span>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-start align-items-md-center justify-content-between flex-column flex-md-row gap-2 mb-4">
+    <div>
+        <h1 class="h3 mb-1"><i class="bi bi-geo-alt me-2"></i>Статистика по городам</h1>
+        <div class="text-muted">Аналитика цен и объемов по конкретным направлениям</div>
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+        <form method="get" class="d-flex align-items-center gap-3">
+            <div class="d-flex align-items-center gap-2">
+                <label for="year_select" class="form-label mb-0 fw-semibold text-nowrap">Год:</label>
+                <select name="year" id="year_select" class="form-select w-auto" onchange="this.form.submit()">
+                    {% for year in available_years %}
+                    <option value="{{ year }}" {% if year|is_same:selected_year %}selected{% endif %}>{{ year }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <label for="city_select" class="form-label mb-0 fw-semibold text-nowrap">Город:</label>
+                <select name="city" id="city_select" class="form-select w-auto" onchange="this.form.submit()">
+                    <option value="">Выберите город</option>
+                    {% for city in available_cities %}
+                    <option value="{{ city }}" {% if city|is_same:selected_city %}selected{% endif %}>{{ city }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <label for="month_select" class="form-label mb-0 fw-semibold text-nowrap">Месяц:</label>
+                <select name="month" id="month_select" class="form-select w-auto" onchange="this.form.submit()">
+                    <option value="">Весь год</option>
+                    {% for num, name in month_names.items %}
+                    <option value="{{ num }}" {% if num|is_same:selected_month %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if selected_city %}
+<div class="card shadow-sm mb-4 border-0">
+    <div class="card-header bg-primary text-white py-3">
+        <h5 class="mb-0"><i class="bi bi-geo-alt me-2"></i>Результаты: {{ selected_city }}
+            {% if selected_month %} — {{ month_names|get_item:selected_month }}{% endif %}
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="p-3 border rounded bg-light text-center">
+                    <div class="text-muted small mb-1">Перевозок (тендеров)</div>
+                    <div class="fs-4 fw-bold">{{ city_stats.total_shipments }}</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 border rounded bg-light text-center">
+                    <div class="text-muted small mb-1">Машин (общий объем)</div>
+                    <div class="fs-4 fw-bold">{{ city_stats.total_volume }}</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 border rounded bg-light text-center">
+                    <div class="text-muted small mb-1">Общая стоимость</div>
+                    <div class="fs-4 fw-bold text-success">{{ city_stats.total_amount|floatformat:0 }} ₽</div>
+                </div>
+            </div>
+        </div>
+
+        <h6 class="mb-3 fw-bold">График финальных цен:</h6>
+        <div style="height: 400px; position: relative;">
+            <canvas id="cityChart"></canvas>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body p-5 text-center text-muted">
+        <i class="bi bi-geo-alt display-1 d-block mb-3 opacity-25"></i>
+        <h4>Выберите город</h4>
+        <p>Используйте фильтры выше, чтобы увидеть детальную статистику по конкретному городу.</p>
+    </div>
+</div>
+{% endif %}
+
+<div class="text-center mb-4">
+    <a href="{% url 'leadership_statistics' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-2"></i>Вернуться к общей статистике
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        try {
+            const labels = JSON.parse('{{ chart_labels_json|escapejs }}');
+            const data = JSON.parse('{{ chart_data_json|escapejs }}');
+            if (labels && labels.length > 0) {
+                const ctx = document.getElementById('cityChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Финальная цена (₽)',
+                            data: data,
+                            backgroundColor: 'rgba(0, 102, 204, 0.7)',
+                            borderColor: 'rgba(0, 102, 204, 1)',
+                            borderWidth: 1,
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) { return context.raw.toLocaleString() + ' ₽'; }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function (value) { return value.toLocaleString() + ' ₽'; }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        } catch (e) {
+            console.error('City chart initialization error:', e);
+        }
+    });
+</script>
+{% endblock %}

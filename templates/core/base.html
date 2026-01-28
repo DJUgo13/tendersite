@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0066cc">
+    <title>{% block title %}Тендерная площадка{% endblock %}</title>
+    <!-- PWA Manifest -->
+    {% load static %}
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+    <link rel="apple-touch-icon" href="{% static 'core/images/icon-192.png' %}">
+    <!-- Подключаем Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Подключаем HTMX для динамики -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <!-- Иконки Bootstrap -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <!-- Google Analytics -->
+    <!-- Инструкция: Замените 'GA_MEASUREMENT_ID' ниже на ваш реальный ID отслеживания из Google Analytics -->
+    <!-- Получите ID на https://analytics.google.com/ -->
+    {% comment %}
+    <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+        gtag('js', new Date());
+        gtag('config', 'GA_MEASUREMENT_ID', {
+            'custom_map': {
+                'dimension1': 'device_type'
+            },
+            'device_type': /Mobile|Android|iPhone|iPad/.test(navigator.userAgent) ? 'mobile' : 'desktop'
+        });
+    </script>
+    {% endcomment %}
+    <style>
+        :root {
+            --gf-primary: #0066cc;
+            --gf-primary-dark: #0052a3;
+            --gf-text: #000000;
+            --gf-text-light: #666666;
+            --gf-border: #e0e0e0;
+            --gf-bg-light: #f8f9fa;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            color: var(--gf-text);
+            background-color: #ffffff;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        /* Минимальные размеры кнопок для мобильных (44px) */
+
+        .btn,
+        button,
+        a.btn,
+        input[type="submit"],
+        input[type="button"] {
+            min-height: 44px;
+            min-width: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Адаптивные контейнеры */
+
+        @media (max-width: 767px) {
+            .container-fluid-mobile {
+                padding-left: 15px;
+                padding-right: 15px;
+            }
+
+            .container-lg {
+                padding-left: 15px;
+                padding-right: 15px;
+            }
+        }
+
+
+
+        .top-bar {
+            background-color: #202020;
+            border-bottom: 1px solid var(--gf-border);
+            padding: 8px 0;
+            font-size: 14px;
+            color: #ffffff;
+        }
+
+        @media (max-width: 767px) {
+            .top-bar {
+                font-size: 12px;
+                padding: 6px 0;
+            }
+
+            .top-bar .d-flex {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .top-bar a {
+                margin: 0 8px;
+            }
+        }
+
+        .top-bar a {
+            color: #ffffff;
+            text-decoration: none;
+            margin: 0 15px;
+        }
+
+        .top-bar a:hover {
+            color: #ffffff;
+            opacity: 0.8;
+        }
+
+        .top-bar strong {
+            color: #ffffff;
+        }
+
+        /* Основная навигация */
+
+        .main-navbar {
+            background-color: #ffffff;
+            border-bottom: 1px solid var(--gf-border);
+            padding: 15px 0;
+        }
+
+        @media (max-width: 767px) {
+            .main-navbar {
+                padding: 10px 0;
+            }
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: #000000;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .logo-image {
+            height: 40px;
+            width: auto;
+            display: block;
+        }
+
+        .nav-menu {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .nav-menu a {
+            color: #000000;
+            text-decoration: none;
+            font-size: 15px;
+            padding: 8px 0;
+            position: relative;
+            transition: color 0.3s;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+        }
+
+        .nav-menu a:hover,
+        .nav-menu a.active {
+            color: var(--gf-primary);
+        }
+
+        .nav-menu a.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: var(--gf-primary);
+        }
+
+        .navbar-toggler {
+            min-height: 44px;
+            min-width: 44px;
+        }
+
+        /* Мобильная навигация */
+
+        @media (max-width: 767px) {
+            .nav-menu {
+                flex-direction: column;
+                gap: 0;
+                width: 100%;
+                padding: 10px 0;
+            }
+
+            .nav-menu li {
+                width: 100%;
+            }
+
+            .nav-menu a {
+                padding: 12px 15px;
+                width: 100%;
+                border-bottom: 1px solid var(--gf-border);
+            }
+
+            .nav-menu a.active::after {
+                display: none;
+            }
+
+            .nav-menu a.active {
+                background-color: var(--gf-bg-light);
+            }
+        }
+
+        .nav-icons {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .nav-icon {
+            color: #000000;
+            font-size: 20px;
+            text-decoration: none;
+            position: relative;
+        }
+
+        .nav-icon:hover {
+            color: var(--gf-primary);
+        }
+
+        .cart-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background-color: var(--gf-primary);
+            color: white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .breadcrumbs {
+            padding: 15px 0;
+            font-size: 14px;
+            color: #666666;
+        }
+
+        .breadcrumbs a {
+            color: #666666;
+            text-decoration: none;
+        }
+
+        .breadcrumbs a:hover {
+            color: var(--gf-primary);
+        }
+
+        .main-content {
+            padding: 30px 0 60px;
+        }
+
+        @media (max-width: 767px) {
+            .main-content {
+                padding: 15px 0 30px;
+            }
+        }
+
+        h1,
+        h2 {
+            color: #000000;
+            font-weight: 600;
+            margin-bottom: 25px;
+        }
+
+        .btn-primary {
+            background-color: var(--gf-primary);
+            border-color: var(--gf-primary);
+            padding: 12px 30px;
+            font-weight: 500;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--gf-primary-dark);
+            border-color: var(--gf-primary-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 102, 204, 0.2);
+        }
+
+        .btn-outline-primary {
+            color: var(--gf-primary);
+            border-color: var(--gf-primary);
+        }
+
+        .btn-outline-primary:hover {
+            background-color: var(--gf-primary);
+            border-color: var(--gf-primary);
+        }
+
+        /* Таблицы */
+
+        .table {
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        .table thead th {
+            background-color: var(--gf-bg-light);
+            border-bottom: 2px solid var(--gf-border);
+            font-weight: 600;
+            color: #000000;
+            padding: 15px;
+        }
+
+        .table tbody td {
+            padding: 15px;
+            border-bottom: 1px solid var(--gf-border);
+        }
+
+        .table-hover tbody tr:hover {
+            background-color: #f0f7ff;
+        }
+
+        /* Бейджи */
+
+        .badge {
+            padding: 6px 12px;
+            font-weight: 500;
+            border-radius: 4px;
+        }
+
+        /* Алерты */
+
+        .alert {
+            border-radius: 4px;
+            border: none;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .alert-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .alert-warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .alert-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        /* Лучшая цена */
+
+        .best-price {
+            font-weight: 600;
+            color: var(--gf-primary);
+            font-size: 16px;
+        }
+
+        /* Формы */
+
+        .form-control {
+            border: 1px solid var(--gf-border);
+            border-radius: 4px;
+            padding: 10px 15px;
+        }
+
+        .form-control:focus {
+            border-color: var(--gf-primary);
+            box-shadow: 0 0 0 0.2rem rgba(0, 102, 204, 0.15);
+        }
+
+        /* Модальные окна */
+
+        .modal-header {
+            border-bottom: 1px solid var(--gf-border);
+        }
+
+        .modal-footer {
+            border-top: 1px solid var(--gf-border);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Верхняя панель с контактами -->
+    <div class="top-bar d-none d-md-block">
+        <div class="container container-lg">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <span class="me-3">Ваш город: <strong>Москва</strong> <i class="bi bi-chevron-down"></i></span>
+                    <a href="tel:+74957871175"><i class="bi bi-telephone"></i> +7 (495) 787-11-75</a>
+                </div>
+                <div class="d-flex align-items-center">
+                    <a href="tel:+74957871144"><i class="bi bi-telephone"></i> +7 (495) 787-11-44</a>
+                    <a href="mailto:info@tendersite.ru"><i class="bi bi-envelope"></i> info@tendersite.ru</a>
+                    <a href="#"><i class="bi bi-chat-left-text"></i> Обратная связь</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Основная навигация -->
+    <nav class="navbar navbar-expand-lg main-navbar">
+        <div class="container container-lg">
+            <a href="{% if user_role == 'leadership' or user_role == 'admin' %}{% url 'leadership_dashboard' %}{% elif user.is_authenticated %}{% url 'manager_dashboard' %}{% else %}{% url 'login' %}{% endif %}"
+                class="navbar-brand logo">
+                {% load static %}
+                <img src="{% static 'core/images/logo.png' %}" alt="GLOBAL FOODS" class="logo-image">
+            </a>
+
+            <button class="navbar-toggler d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto nav-menu">
+                    <!-- Роль: Руководство или Админ -->
+                    {% if user_role == 'leadership' or user_role == 'admin' %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'manager_dashboard' %}active{% endif %}"
+                            href="{% url 'manager_dashboard' %}">
+                            <i class="bi bi-grid-3x3-gap"></i> <span>Тендеры</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'leadership_dashboard' or 'leadership' in request.path %}active{% endif %}"
+                            href="{% url 'leadership_dashboard' %}">
+                            <i class="bi bi-graph-up"></i> <span>Руководство</span>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    <!-- Роль: Менеджер (и остальные, если не руководство) -->
+                    {% if user.is_authenticated and user_role == 'manager' %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'manager_dashboard' %}active{% endif %}"
+                            href="{% url 'manager_dashboard' %}">
+                            <i class="bi bi-grid-3x3-gap"></i> <span>Тендеры</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'manager_dashboard' %}">
+                            <i class="bi bi-building"></i>
+                            <span>{% if user_company %}{{ user_company.name|truncatechars:15 }}{% else %}Профиль{% endif %}</span>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    <!-- Общие пункты для авторизованных -->
+                    {% if user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'help_page' %}">
+                            <i class="bi bi-question-circle"></i> <span>Помощь</span>
+                        </a>
+                    </li>
+                    {% if user_role == 'admin' %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'admin:index' %}">
+                            <i class="bi bi-shield-lock"></i> <span>Админка</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'logout' %}">
+                            <i class="bi bi-box-arrow-right"></i> <span>Выйти</span>
+                        </a>
+                    </li>
+                    {% else %}
+                    <!-- Для гостей -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'login' %}">
+                            <i class="bi bi-box-arrow-in-right"></i> <span>Вход</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Хлебные крошки -->
+    {% block breadcrumbs %}
+    <div class="breadcrumbs">
+        <div class="container-fluid container-lg">
+            <a href="{% url 'manager_dashboard' %}">Главная</a> {% block breadcrumb_items %}{% endblock %}
+        </div>
+    </div>
+    {% endblock %}
+
+    <!-- Основной контент -->
+    <div class="main-content">
+        <div class="container-fluid container-lg">
+            {% if messages %} {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Закрыть"></button>
+            </div>
+            {% endfor %} {% endif %} {% block content %}
+            <!-- Сюда будет подставляться уникальное содержание страницы -->
+            {% endblock %}
+        </div>
+    </div>
+
+    <!-- Туториал при первом заходе (только на мобильных) -->
+    <div id="mobile-tutorial" class="modal fade" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-phone me-2"></i>Добро пожаловать!
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    <div id="tutorial-step-1">
+                        <h6 class="mb-3">Как пользоваться приложением:</h6>
+                        <ul class="list-unstyled">
+                            <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>Выберите тендер из
+                                списка</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>Просмотрите направления
+                            </li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>Сделайте ставку ниже
+                                текущей лучшей цены</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>Используйте кнопки -5%
+                                и -10% для быстрого изменения цены</li>
+                        </ul>
+                    </div>
+                    <div id="tutorial-step-2" class="d-none">
+                        <h6 class="mb-3">Полезные функции:</h6>
+                        <ul class="list-unstyled">
+                            <li class="mb-2"><i class="bi bi-info-circle text-primary me-2"></i>Цены обновляются
+                                автоматически каждые 30 секунд</li>
+                            <li class="mb-2"><i class="bi bi-info-circle text-primary me-2"></i>Вы можете установить
+                                приложение на главный экран</li>
+                            <li class="mb-2"><i class="bi bi-info-circle text-primary me-2"></i>Приложение работает
+                                офлайн для просмотра</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary d-none" id="tutorial-prev">Назад</button>
+                    <button type="button" class="btn btn-primary" id="tutorial-next">Далее</button>
+                    <button type="button" class="btn btn-primary d-none" id="tutorial-finish">Понятно</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- PWA Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('{% static "sw.js" %}')
+                    .then(function (registration) {
+                        console.log('ServiceWorker registration successful');
+                    })
+                    .catch(function (err) {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+
+        // PWA Install Prompt
+        let deferredPrompt;
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            // Показываем баннер установки
+            const banner = document.createElement('div');
+            banner.id = 'install-banner';
+            banner.className = 'alert alert-info alert-dismissible fade show position-fixed bottom-0 start-0 end-0 m-0 rounded-0 d-md-none';
+            banner.style.zIndex = '9999';
+            banner.innerHTML = `
+                <div class="container-fluid">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <i class="bi bi-download me-2"></i>
+                            <strong>Установите приложение</strong> для быстрого доступа
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-primary me-2" id="install-btn">Установить</button>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Закрыть"></button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(banner);
+
+            document.getElementById('install-btn').addEventListener('click', async () => {
+                banner.remove();
+                deferredPrompt.prompt();
+                const {
+                    outcome
+                } = await deferredPrompt.userChoice;
+                console.log(`User response to the install prompt: ${outcome}`);
+                deferredPrompt = null;
+            });
+        });
+
+        // Мобильный туториал при первом заходе
+        (function () {
+            const isMobile = /Mobile|Android|iPhone|iPad/.test(navigator.userAgent);
+            const tutorialShown = localStorage.getItem('mobile-tutorial-shown');
+
+            if (isMobile && !tutorialShown) {
+                const tutorialModal = new bootstrap.Modal(document.getElementById('mobile-tutorial'));
+                let currentStep = 1;
+
+                document.getElementById('tutorial-next').addEventListener('click', () => {
+                    if (currentStep === 1) {
+                        document.getElementById('tutorial-step-1').classList.add('d-none');
+                        document.getElementById('tutorial-step-2').classList.remove('d-none');
+                        document.getElementById('tutorial-prev').classList.remove('d-none');
+                        document.getElementById('tutorial-next').classList.add('d-none');
+                        document.getElementById('tutorial-finish').classList.remove('d-none');
+                        currentStep = 2;
+                    }
+                });
+
+                document.getElementById('tutorial-prev').addEventListener('click', () => {
+                    document.getElementById('tutorial-step-1').classList.remove('d-none');
+                    document.getElementById('tutorial-step-2').classList.add('d-none');
+                    document.getElementById('tutorial-prev').classList.add('d-none');
+                    document.getElementById('tutorial-next').classList.remove('d-none');
+                    document.getElementById('tutorial-finish').classList.add('d-none');
+                    currentStep = 1;
+                });
+
+                document.getElementById('tutorial-finish').addEventListener('click', () => {
+                    tutorialModal.hide();
+                    localStorage.setItem('mobile-tutorial-shown', 'true');
+                });
+
+                // Показываем туториал через 1 секунду после загрузки
+                setTimeout(() => {
+                    tutorialModal.show();
+                }, 1000);
+            }
+        })();
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>

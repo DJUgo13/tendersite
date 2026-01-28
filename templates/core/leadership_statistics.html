@@ -1,0 +1,163 @@
+{% extends 'core/base.html' %}
+{% load core_extras %}
+{% block title %}Руководство — Статистика{% endblock %}
+{% block breadcrumb_items %}
+> <a href="{% url 'leadership_dashboard' %}">Руководство</a>
+> <span>Статистика</span>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-start align-items-md-center justify-content-between flex-column flex-md-row gap-2 mb-4">
+    <div>
+        <h1 class="h3 mb-1"><i class="bi bi-bar-chart me-2"></i>Статистика тендеров</h1>
+        <div class="text-muted">Общая аналитика по годам и месяцам</div>
+    </div>
+
+    <div class="d-flex align-items-center gap-3">
+        <a href="{% url 'leadership_city_statistics' %}" class="btn btn-primary">
+            <i class="bi bi-geo-alt me-2"></i>Статистика по городам
+        </a>
+
+        <form method="get" class="d-flex align-items-center gap-2">
+            <label for="year_select" class="form-label mb-0 fw-semibold">Год:</label>
+            <select name="year" id="year_select" class="form-select w-auto" onchange="this.form.submit()">
+                {% for year in available_years %}
+                <option value="{{ year }}" {% if year|is_same:selected_year %}selected{% endif %}>{{ year }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
+        <div class="card h-100 shadow-sm border-primary border-start border-4">
+            <div class="card-body">
+                <div class="text-muted small mb-1">Всего тендеров</div>
+                <div class="fs-4 fw-bold">{{ year_totals.tenders }}</div>
+                <div class="text-muted small">за {{ selected_year }} год</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="card h-100 shadow-sm border-info border-start border-4">
+            <div class="card-body">
+                <div class="text-muted small mb-1">Общий объем</div>
+                <div class="fs-4 fw-bold">{{ year_totals.volume }}</div>
+                <div class="text-muted small">машин</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="card h-100 shadow-sm border-warning border-start border-4">
+            <div class="card-body">
+                <div class="text-muted small mb-1">Сумма</div>
+                <div class="fs-4 fw-bold text-nowrap">{% if year_totals.amount %}{{ year_totals.amount|floatformat:0}}{%else %}0{% endif %} ₽</div>
+                <div class="text-muted small">общий бюджет</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-transparent py-3">
+        <h5 class="mb-0"><i class="bi bi-calendar3 me-2"></i>Детализация по месяцам</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="p-4 border-bottom">
+            <div style="height: 300px; position: relative;">
+                <canvas id="monthlyChart"></canvas>
+            </div>
+        </div>
+
+        {% if stats_data %}
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="min-width: 120px;">Месяц</th>
+                        <th class="text-center">Тендеры</th>
+                        <th class="text-end">Объем (маш.)</th>
+                        <th class="text-end">Сумма (₽)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in stats_data %}
+                    <tr>
+                        <td class="fw-semibold">{{ row.m_name }}</td>
+                        <td class="text-center"><span class="badge bg-primary rounded-pill">{{ row.t_cnt }}</span></td>
+                        <td class="text-end font-monospace">{{ row.t_vol }}</td>
+                        <td class="text-end font-monospace fw-bold text-success">{{ row.t_amt|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="table-active fw-bold">
+                        <td>ИТОГО</td>
+                        <td class="text-center">{{ year_totals.tenders }}</td>
+                        <td class="text-end">{{ year_totals.volume }}</td>
+                        <td class="text-end">{{ year_totals.amount|floatformat:2 }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-5 text-center text-muted">
+            <i class="bi bi-clipboard-data display-1 d-block mb-3 opacity-25"></i>
+            <h4>Нет данных</h4>
+            <p>В выбранном году закрытых тендеров не найдено.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        try {
+            const labels = JSON.parse('{{ monthly_chart_labels_json|escapejs }}');
+            const data = JSON.parse('{{ monthly_chart_data_json|escapejs }}');
+
+            if (labels && labels.length > 0) {
+                const ctx = document.getElementById('monthlyChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Сумма (₽)',
+                            data: data,
+                            backgroundColor: 'rgba(25, 135, 84, 0.7)',
+                            borderColor: 'rgba(25, 135, 84, 1)',
+                            borderWidth: 1,
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) { return context.raw.toLocaleString() + ' ₽'; }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function (value) { return value.toLocaleString() + ' ₽'; }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        } catch (e) {
+            console.error('Chart initialization error:', e);
+        }
+    });
+</script>
+{% endblock %}

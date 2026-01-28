@@ -1,0 +1,76 @@
+{% extends 'core/base.html' %}
+{% block title %}Мои тендеры{% endblock %}
+{% block breadcrumb_items %} > <span>Тендеры</span>{% endblock %}
+{% block content %}
+<h1 class="h3 h-md-1">Активные тендеры</h1>
+<p class="text-muted mb-4">Выберите тендер для участия и размещения ставок</p>
+
+{% if tenders %}
+<!-- Мобильные карточки (только на мобильных) -->
+<div class="d-md-none">
+    {% for tender in tenders %}
+    <div class="card mb-3 shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title mb-3">{{ tender.name }}</h5>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="badge bg-{% if tender.status == 'open' %}success{% else %}secondary{% endif %}">
+                    {{ tender.get_status_display }}
+                </span>
+                <small class="text-muted">
+                    <i class="bi bi-calendar3 me-1"></i>{{ tender.created_at|date:"d.m.Y" }}
+                </small>
+            </div>
+            <div class="mb-3">
+                <i class="bi bi-map me-1"></i>
+                <strong>{{ tender.directions.count }}</strong> направлений
+            </div>
+            <a href="{% url 'tender_detail' tender.id %}" class="btn btn-primary w-100">
+                <i class="bi bi-arrow-right-circle me-1"></i>Участвовать
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Таблица для планшетов и десктопов -->
+<div class="d-none d-md-block">
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Название тендера</th>
+                    <th class="d-none d-lg-table-cell">Статус</th>
+                    <th>Направлений</th>
+                    <th class="d-none d-lg-table-cell">Дата создания</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tender in tenders %}
+                <tr>
+                    <td><strong>{{ tender.name }}</strong></td>
+                    <td class="d-none d-lg-table-cell">
+                        <span class="badge bg-{% if tender.status == 'open' %}success{% else %}secondary{% endif %}">
+                            {{ tender.get_status_display }}
+                        </span>
+                    </td>
+                    <td>{{ tender.directions.count }}</td>
+                    <td class="d-none d-lg-table-cell">{{ tender.created_at|date:"d.m.Y H:i" }}</td>
+                    <td>
+                        <a href="{% url 'tender_detail' tender.id %}" class="btn btn-primary btn-sm">
+                            <i class="bi bi-arrow-right-circle me-1"></i>Участвовать
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>
+    В данный момент нет активных тендеров для участия.
+</div>
+{% endif %}
+{% endblock %}
