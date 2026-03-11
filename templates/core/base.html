@@ -48,6 +48,13 @@
             --gf-bg-light: #f8f9fa;
         }
 
+        html,
+        body {
+            overflow-x: hidden;
+            width: 100%;
+            position: relative;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             color: var(--gf-text);
@@ -72,18 +79,18 @@
         /* Адаптивные контейнеры */
 
         @media (max-width: 767px) {
+
+            /* Добавляем небольшие отступы по бокам */
             .container-fluid-mobile {
-                padding-left: 15px;
-                padding-right: 15px;
+                padding-left: 12px;
+                padding-right: 12px;
             }
 
             .container-lg {
-                padding-left: 15px;
-                padding-right: 15px;
+                padding-left: 12px;
+                padding-right: 12px;
             }
         }
-
-
 
         .top-bar {
             background-color: #202020;
@@ -415,13 +422,11 @@
         <div class="container container-lg">
             <div class="d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center">
-                    <span class="me-3">Ваш город: <strong>Москва</strong> <i class="bi bi-chevron-down"></i></span>
                     <a href="tel:+74957871175"><i class="bi bi-telephone"></i> +7 (495) 787-11-75</a>
                 </div>
                 <div class="d-flex align-items-center">
                     <a href="tel:+74957871144"><i class="bi bi-telephone"></i> +7 (495) 787-11-44</a>
                     <a href="mailto:info@tendersite.ru"><i class="bi bi-envelope"></i> info@tendersite.ru</a>
-                    <a href="#"><i class="bi bi-chat-left-text"></i> Обратная связь</a>
                 </div>
             </div>
         </div>
@@ -429,11 +434,11 @@
 
     <!-- Основная навигация -->
     <nav class="navbar navbar-expand-lg main-navbar">
-        <div class="container container-lg">
+        <div class="{% block navbar_container_class %}container container-lg{% endblock %}">
             <a href="{% if user_role == 'leadership' or user_role == 'admin' %}{% url 'leadership_dashboard' %}{% elif user.is_authenticated %}{% url 'manager_dashboard' %}{% else %}{% url 'login' %}{% endif %}"
                 class="navbar-brand logo">
                 {% load static %}
-                <img src="{% static 'core/images/logo.png' %}" alt="GLOBAL FOODS" class="logo-image">
+                <span>GLOBAL FOODS</span>
             </a>
 
             <button class="navbar-toggler d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
@@ -462,15 +467,16 @@
                     <!-- Роль: Менеджер (и остальные, если не руководство) -->
                     {% if user.is_authenticated and user_role == 'manager' %}
                     <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.url_name == 'manager_dashboard' %}active{% endif %}"
-                            href="{% url 'manager_dashboard' %}">
+                        <a class="nav-link" {% if request.resolver_match.url_name == 'manager_dashboard' %}active{% endif %}href="{% url 'manager_dashboard' %}">
                             <i class="bi bi-grid-3x3-gap"></i> <span>Тендеры</span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'manager_dashboard' %}">
+                        <a class="nav-link" href="#" data-bs-toggle="offcanvas" data-bs-target="#companyOffcanvas"
+                            hx-get="{% url 'get_company_stats' %}" hx-target="#company-stats-content"
+                            hx-trigger="click">
                             <i class="bi bi-building"></i>
-                            <span>{% if user_company %}{{ user_company.name|truncatechars:15 }}{% else %}Профиль{% endif %}</span>
+                            <span>{% if user_company %}{{ user_company.name|truncatechars:15 }}{% else%}Профиль{%endif%}</span>
                         </a>
                     </li>
                     {% endif %}
@@ -510,7 +516,7 @@
     <!-- Хлебные крошки -->
     {% block breadcrumbs %}
     <div class="breadcrumbs">
-        <div class="container-fluid container-lg">
+        <div class="{% block breadcrumbs_container_class %}container-fluid container-lg{% endblock %}">
             <a href="{% url 'manager_dashboard' %}">Главная</a> {% block breadcrumb_items %}{% endblock %}
         </div>
     </div>
@@ -518,7 +524,7 @@
 
     <!-- Основной контент -->
     <div class="main-content">
-        <div class="container-fluid container-lg">
+        <div class="{% block container_class %}container-fluid container-lg{% endblock %}">
             {% if messages %} {% for message in messages %}
             <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
                 {{ message }}
@@ -527,6 +533,23 @@
             {% endfor %} {% endif %} {% block content %}
             <!-- Сюда будет подставляться уникальное содержание страницы -->
             {% endblock %}
+        </div>
+    </div>
+
+    <!-- Оффканвас для мини-профиля компании -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="companyOffcanvas" aria-labelledby="companyOffcanvasLabel">
+        <div class="offcanvas-header border-bottom">
+            <h5 class="offcanvas-title" id="companyOffcanvasLabel"><i
+                    class="bi bi-person-badge me-2 text-primary"></i>Профиль компании</h5>
+            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body p-0" id="company-stats-content">
+            <div class="p-4 text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Загрузка...</span>
+                </div>
+                <p class="mt-2 text-muted">Загрузка статистики...</p>
+            </div>
         </div>
     </div>
 
@@ -544,7 +567,8 @@
                         <h6 class="mb-3">Как пользоваться приложением:</h6>
                         <ul class="list-unstyled">
                             <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>Выберите тендер из
-                                списка</li>
+                                списка
+                            </li>
                             <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>Просмотрите направления
                             </li>
                             <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>Сделайте ставку ниже
@@ -602,7 +626,7 @@
             banner.className = 'alert alert-info alert-dismissible fade show position-fixed bottom-0 start-0 end-0 m-0 rounded-0 d-md-none';
             banner.style.zIndex = '9999';
             banner.innerHTML = `
-                <div class="container-fluid">
+                <div class="container-fluid px-3">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
                             <i class="bi bi-download me-2"></i>

@@ -1,0 +1,469 @@
+/* Custom CSS for Django Admin to match Global Foods site style */
+
+/* Force light theme prevent flickering */
+:root,
+html {
+    --gf-primary: #0066cc;
+    --gf-primary-dark: #0052a3;
+    --gf-text: #000000;
+    --gf-text-light: #333333;
+    --gf-border: #cccccc;
+    --gf-bg-light: #f1f1f1;
+    --header-link-color: #ffffff;
+
+    /* Django 4.2+ specific Dark Mode variable overrides */
+    --body-bg: #ffffff !important;
+    --body-fg: #000000 !important;
+    --header-bg: #202020 !important;
+    --header-color: #ffffff !important;
+    --breadcrumbs-bg: #ffffff !important;
+    --link-fg: #0066cc !important;
+    --link-hover-color: #0052a3 !important;
+    --header-link-color: #ffffff !important;
+
+    color-scheme: light !important;
+}
+
+/* Force light colors even if OS is in dark mode */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --body-bg: #ffffff !important;
+        --body-fg: #000000 !important;
+        --header-bg: #202020 !important;
+        --header-color: #ffffff !important;
+        --breadcrumbs-bg: #ffffff !important;
+        --link-fg: #0066cc !important;
+        --gf-border: #cccccc !important;
+        --gf-bg-light: #f1f1f1 !important;
+        --primary: #0066cc !important;
+    }
+
+    html,
+    body {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+}
+
+/* Explicitly set light mode variables and hide theme toggle */
+html,
+body {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    transition: none !important;
+    /* No transition for background to avoid flicker */
+}
+
+#theme-toggle {
+    display: none !important;
+}
+
+/* Header styling */
+#header {
+    background: #202020 !important;
+    color: #ffffff !important;
+    padding: 10px 40px !important;
+}
+
+#header a:link,
+#header a:visited {
+    color: var(--header-link-color) !important;
+}
+
+#branding h1 {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+#branding h1 a:link,
+#branding h1 a:visited {
+    color: #ffffff !important;
+}
+
+/* Sidebar styling */
+#content-main {
+    float: none !important;
+}
+
+.module h2,
+.module caption,
+.inline-group h2 {
+    background: var(--gf-bg-light) !important;
+    color: var(--gf-primary) !important;
+    border-bottom: 1px solid var(--gf-border) !important;
+    font-weight: 600;
+}
+
+/* Buttons */
+.button,
+input[type=submit],
+input[type=button],
+.submit-row input,
+a.button {
+    background: var(--gf-primary) !important;
+    border-radius: 4px !important;
+    padding: 8px 15px !important;
+    font-weight: 600 !important;
+    /* Bolder text */
+    transition: background 0.2s, box-shadow 0.2s !important;
+    /* Reduced transition to avoid flickering */
+    border: none !important;
+    color: white !important;
+}
+
+/* Remove dark focus/active state from buttons, but NOT from inputs */
+.button:focus,
+.button:active,
+a.button:focus,
+a.button:active {
+    background: var(--gf-primary-dark) !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.2) !important;
+}
+
+.button:hover,
+input[type=submit]:hover,
+input[type=button]:hover,
+.submit-row input:hover {
+    background: var(--gf-primary-dark) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 102, 204, 0.2);
+}
+
+.button.default,
+input[type=submit].default {
+    background: var(--gf-primary) !important;
+}
+
+.button.default:hover,
+input[type=submit].default:hover {
+    background: var(--gf-primary-dark) !important;
+}
+
+/* Tables */
+table thead th {
+    background: var(--gf-bg-light) !important;
+    color: var(--gf-text) !important;
+    font-weight: 600 !important;
+    border-bottom: 2px solid var(--gf-border) !important;
+}
+
+table tbody tr.selected {
+    background-color: #f0f7ff !important;
+}
+
+/* Breadcrumbs */
+.breadcrumbs {
+    background: white !important;
+    border-bottom: 1px solid var(--gf-border) !important;
+    padding: 10px 40px !important;
+}
+
+.breadcrumbs a {
+    color: var(--gf-text-light) !important;
+}
+
+.breadcrumbs a:hover {
+    color: var(--gf-primary) !important;
+}
+
+/* Badges for status */
+.badge-admin {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: white;
+    display: inline-block;
+    text-align: center;
+    min-width: 80px;
+}
+
+.badge-open {
+    background-color: #28a745;
+}
+
+.badge-closed {
+    background-color: #6c757d;
+}
+
+.badge-draft {
+    background-color: #ffc107;
+    color: #000;
+}
+
+/* Content sections as Cards */
+.module {
+    background: #ffffff !important;
+    border: 2px solid var(--gf-border) !important;
+    /* Bolder border */
+    border-radius: 8px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+    /* Bolder shadow */
+    margin-bottom: 30px !important;
+    overflow: hidden !important;
+}
+
+.module h2,
+.module caption,
+.inline-group h2 {
+    background: #f8f9fa !important;
+    /* Slightly distinct bg for header */
+    color: #000000 !important;
+    /* Black text for header for maximum contrast */
+    border-bottom: 2px solid var(--gf-border) !important;
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    padding: 15px 20px !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+}
+
+/* Tables refinement */
+#changelist-form .results {
+    border: none !important;
+    border-radius: 0 0 8px 8px !important;
+}
+
+table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+}
+
+table thead th {
+    background: #fcfcfc !important;
+    padding: 12px 15px !important;
+    font-size: 13px !important;
+    color: var(--gf-text-light) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+
+table tbody td,
+table tbody th {
+    padding: 12px 15px !important;
+    font-size: 14px !important;
+    border-bottom: 1px solid var(--gf-border) !important;
+    color: #111111 !important;
+    /* High contrast text */
+}
+
+table tbody tr:hover {
+    background-color: #f0f7ff !important;
+    /* Bluish tint on hover */
+}
+
+/* Forms and Inputs */
+.form-row {
+    padding: 15px 20px !important;
+    border-bottom: 1px solid #f8f8f8 !important;
+}
+
+.deletelink {
+    background: #dc3545 !important;
+    border-radius: 4px !important;
+    padding: 8px 15px !important;
+    color: white !important;
+    font-weight: 500 !important;
+    text-transform: none !important;
+}
+
+.deletelink:hover {
+    background: #bd2130 !important;
+}
+
+input[type=text],
+input[type=password],
+input[type=email],
+input[type=url],
+input[type=number],
+textarea,
+select {
+    border: 1px solid var(--gf-border) !important;
+    border-radius: 4px !important;
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    box-shadow: none !important;
+    transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+
+input[type=text]:focus,
+input[type=number]:focus,
+input[type=email]:focus,
+input[type=password]:focus,
+textarea:focus,
+select:focus {
+    border-color: var(--gf-primary) !important;
+    outline: none !important;
+    box-shadow: none !important;
+    /* Removed blue glow */
+}
+
+/* Fix for cut-off text in selects and better padding */
+select {
+    height: 40px !important;
+    /* Fixed height can help with some browser rendering issues */
+    line-height: 1.5 !important;
+    padding: 8px 12px !important;
+    appearance: auto !important;
+}
+
+.aligned label {
+    font-weight: 600 !important;
+    color: var(--gf-text) !important;
+    padding-top: 8px !important;
+}
+
+/* Action bars */
+.submit-row {
+    background: #fdfdfd !important;
+    border: 1px solid var(--gf-border) !important;
+    border-radius: 8px !important;
+    padding: 15px 20px !important;
+    margin-top: 20px !important;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.submit-row a.deletelink {
+    margin-right: auto;
+}
+
+#changelist .changelist-form-container {
+    background: transparent !important;
+}
+
+/* Responsive Inlines (Directions) */
+.tabular.inline-related .module {
+    overflow-x: auto !important;
+    /* Always allow horizontal scroll if content overflows */
+    -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 1280px) {
+    .tabular.inline-related .module table {
+        display: block !important;
+        width: 100% !important;
+        min-width: 1000px;
+        /* Force minimum width to trigger parent scroll instead of crushing columns */
+    }
+}
+
+/* For mobile and small tablets, switch to vertical stack */
+@media (max-width: 992px) {
+    .tabular.inline-related .module table {
+        display: block !important;
+        min-width: 0 !important;
+    }
+
+    .tabular.inline-related .module table thead {
+        display: none !important;
+    }
+
+    .tabular.inline-related .module table tbody {
+        display: block !important;
+    }
+
+    .tabular.inline-related .module table tr {
+        display: block !important;
+        border: 1px solid var(--gf-border) !important;
+        border-radius: 8px !important;
+        padding: 10px !important;
+        margin-bottom: 20px !important;
+        background: #ffffff !important;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02) !important;
+    }
+
+    .tabular.inline-related .module table tr.add-row {
+        text-align: center !important;
+        border: none !important;
+        background: transparent !important;
+    }
+
+    .tabular.inline-related .module table td {
+        display: flex !important;
+        flex-direction: column;
+        width: 100% !important;
+        padding: 8px 12px !important;
+        border-bottom: 1px solid #f8f8f8 !important;
+        text-align: left !important;
+        box-sizing: border-box !important;
+    }
+
+    .tabular.inline-related .module table td:last-child {
+        border-bottom: none !important;
+    }
+
+    /* Labels for fields */
+    .tabular.inline-related td.field-city_name::before {
+        content: "Город назначения";
+    }
+
+    .tabular.inline-related td.field-volume::before {
+        content: "Объём (машин)";
+    }
+
+    .tabular.inline-related td.field-start_price::before {
+        content: "Стартовая цена";
+    }
+
+    .tabular.inline-related td.field-current_best_price::before {
+        content: "Текущая лучшая цена";
+    }
+
+    .tabular.inline-related td.field-winner::before {
+        content: "Победитель";
+    }
+
+    .tabular.inline-related td.field-final_price::before {
+        content: "Финальная цена";
+    }
+
+    .tabular.inline-related td.field-last_bid_at::before {
+        content: "Время последней ставки";
+    }
+
+    .tabular.inline-related td.field-final_timer_end::before {
+        content: "Окончание таймера";
+    }
+
+    .tabular.inline-related td.delete::before {
+        content: "Удалить";
+    }
+
+    .tabular.inline-related .module td::before {
+        display: block;
+        font-weight: 700;
+        color: var(--gf-primary);
+        font-size: 11px;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+
+    .tabular.inline-related .module td.original {
+        display: none !important;
+    }
+
+    .tabular.inline-related input[type=text],
+    .tabular.inline-related input[type=number],
+    .tabular.inline-related select {
+        width: 100% !important;
+        max-width: none !important;
+    }
+}
+
+/* Sidebar (Index page) */
+#content-related {
+    background: #ffffff !important;
+    border-left: 1px solid var(--gf-border) !important;
+    padding: 20px !important;
+}
+
+.dashboard .module table th,
+.dashboard .module table td {
+    padding: 10px 15px !important;
+}

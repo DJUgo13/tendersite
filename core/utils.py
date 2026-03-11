@@ -4,9 +4,12 @@
 from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import timedelta
-from django.core.mail import EmailMultiAlternatives
+from django.core.mail import EmailMultiAlternatives, get_connection
 from django.conf import settings
 from .models import UserProfile, AuditLog, Direction, Bid, Tender, Company, Winner
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def get_user_role(user):
@@ -85,12 +88,13 @@ def get_client_ip(request):
     return ip
 
 
+
 def check_and_handle_rebidding(direction):
     """
     Проверка и обработка переторжки при равных ценах
     
     Returns:
-        bool: True если началась переторжка, False если нет
+        bool: True если началась или продолжается переторжка, False если нет
     """
     if direction.tender.status != 'open':
         return False
@@ -99,20 +103,34 @@ def check_and_handle_rebidding(direction):
     active_bids = direction.bids.filter(is_active=True).order_by('price', 'created_at')
     
     if active_bids.count() < 2:
+        # Если была переторжка, но ставки исчезли (теоретически), сбрасываем флаг
+        if direction.is_in_rebidding:
+            direction.is_in_rebidding = False
+            direction.rebidding_end_time = None
+            direction.save(update_fields=['is_in_rebidding', 'rebidding_end_time'])
         return False
     
     # Проверяем, есть ли равные минимальные цены
     min_price = active_bids.first().price
     equal_bids = active_bids.filter(price=min_price)
     
-    if equal_bids.count() >= 2 and not direction.is_in_rebidding:
-        # Начинаем переторжку
-        direction.is_in_rebidding = True
-        direction.rebidding_end_time = timezone.now() + timedelta(minutes=5)  # 5 минут на переторжку
-        direction.save()
-        
-        # Уведомляем компании о переторжке (можно добавить email)
-        return True
+    if equal_bids.count() >= 2:
+        if not direction.is_in_rebidding:
+            # Начинаем переторжку
+            direction.is_in_rebidding = True
+            direction.rebidding_end_time = timezone.now() + timedelta(minutes=5)  # 5 минут на переторжку
+            direction.final_timer_end = None  # КРИТИЧНО: Убираем обычный таймер
+            direction.save(update_fields=['is_in_rebidding', 'rebidding_end_time', 'final_timer_end'])
+            return True
+        return True # Продолжаем переторжку
+    else:
+        # Равенства больше нет (кто-то перебил ниже)
+        if direction.is_in_rebidding:
+            direction.is_in_rebidding = False
+            direction.rebidding_end_time = None
+            # Мы не сохраняем здесь final_timer_end, так как update_final_timer будет вызван следом
+            direction.save(update_fields=['is_in_rebidding', 'rebidding_end_time'])
+            return False
     
     return False
 
@@ -125,35 +143,67 @@ def update_final_timer(direction):
     if direction.tender.status != 'open':
         return
     
+    # Если наступила переторжка, таймер "одной минуты" не работает
+    if direction.is_in_rebidding:
+        return
+    
     timer_minutes = direction.tender.final_timer_minutes
     direction.last_bid_time = timezone.now()
     direction.final_timer_end = timezone.now() + timedelta(minutes=timer_minutes)
-    direction.save()
+    direction.save(update_fields=['last_bid_time', 'final_timer_end'])
+
+
+def initialize_direction_timers(tender):
+    """
+    Устанавливает начальный финальный таймер для всех направлений тендера.
+    Вызывается при открытии тендера.
+    """
+    now = timezone.now()
+    timer_minutes = tender.final_timer_minutes
+    
+    # Обновляем все направления тендера, у которых ещё нет таймера
+    directions = tender.directions.filter(final_timer_end__isnull=True)
+    for d in directions:
+        d.final_timer_end = now + timedelta(minutes=timer_minutes)
+        d.save(update_fields=['final_timer_end'])
+    
+    logger.info(f"Initialized timers for {directions.count()} directions in Tender {tender.id}")
 
 
 def check_auto_close_directions():
     """
-    Проверка и автоматическое закрытие направлений по таймеру
-    Вызывается периодически (через cron или celery)
+    Проверка и автоматическое закрытие направлений по таймеру.
+    Если все направления тендера закрыты, закрывает сам тендер.
     """
     now = timezone.now()
 
-    # Завершаем переторжку, если время вышло
-    Direction.objects.filter(
+    # 1. Завершаем переторжку по времени
+    rebidding_ended = Direction.objects.filter(
         tender__status='open',
         is_in_rebidding=True,
         rebidding_end_time__isnull=False,
         rebidding_end_time__lte=now
-    ).update(is_in_rebidding=False, rebidding_end_time=None)
+    )
     
-    # Находим направления с истёкшим таймером
+    for d in rebidding_ended:
+        d.is_in_rebidding = False
+        d.rebidding_end_time = None
+        # Если переторжка закончилась, закрываем направление (ставим таймер на сейчас)
+        d.final_timer_end = now
+        d.save(update_fields=['is_in_rebidding', 'rebidding_end_time', 'final_timer_end'])
+    
+    # 2. Находим направления с истёкшим таймером, которые ещё не закрыты (winner=None)
+    # Важно: обрабатываем все направления тендеров со статусом 'open'
     directions_to_close = Direction.objects.filter(
         tender__status='open',
         final_timer_end__lte=now,
         winner__isnull=True
     )
     
+    affected_tenders = set()
     for direction in directions_to_close:
+        affected_tenders.add(direction.tender)
+        
         # Определяем победителя
         winning_bid = direction.bids.filter(is_active=True).order_by('price', 'created_at').first()
         
@@ -165,7 +215,7 @@ def check_auto_close_directions():
             
             # Создаём запись в Winner
             from .models import Winner
-            Winner.objects.update_or_create(
+            winner_record, created = Winner.objects.update_or_create(
                 tender=direction.tender,
                 direction=direction,
                 defaults={
@@ -173,6 +223,31 @@ def check_auto_close_directions():
                     'price': winning_bid.price
                 }
             )
+            # Отправляем письмо немедленно, если результат зафиксирован впервые
+            if created:
+                send_winner_email(direction.tender, direction, winning_bid)
+        else:
+            # Направление закрывается без победителя (никто не сделал ставку)
+            # Оно всё равно будет считаться завершённым в цикле ниже
+            pass
+
+    # 3. Проверяем затронутые тендеры: если ВСЕ направления тендера имеют winner ИЛИ их таймер истёк
+    open_tenders = Tender.objects.filter(status='open')
+    for tender in open_tenders:
+        all_finished = True
+        for d in tender.directions.all():
+            # Направление считается законченным если:
+            # - есть победитель
+            # - ИЛИ таймер истёк и ставок нет
+            is_finished = (d.winner is not None) or (d.final_timer_end and d.final_timer_end <= now)
+            if not is_finished:
+                all_finished = False
+                break
+        
+        if all_finished:
+            logger.info(f"Auto-closing Tender {tender.id} because all directions are finished.")
+            from .views import close_tender_and_notify_winners
+            close_tender_and_notify_winners(tender, set_end_time=True)
 
 
 def get_anonymous_best_price(direction, user_company=None):
@@ -208,152 +283,42 @@ def get_anonymous_best_price(direction, user_company=None):
 
 
 def send_winner_email(tender, direction, winning_bid):
-    """Отправка письма победителю лота."""
+    """Отправка письма победителю лота через Celery."""
+    logger.info(f"Queueing winner email for Tender {tender.id}, Direction {direction.id}, Company {winning_bid.company.id}")
+    
     try:
-        user_email = winning_bid.company.user.email
-        if not user_email:
-            return False, f'У победителя {winning_bid.company.name} не указан email'
-        
-        subject = f'{settings.EMAIL_SUBJECT_PREFIX}Победа в тендере "{tender.name}"'
-        text_message = f'''Поздравляем! Ваша компания "{winning_bid.company.name}" победила в тендере "{tender.name}".
-
-Детали победы:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Тендер: {tender.name}
-Направление: {direction.city_name}
-Ваша выигрышная ставка: {winning_bid.price:,.2f} руб.
-Объём: {direction.volume} машин
-Дата закрытия тендера: {tender.end_time.strftime("%d.%m.%Y %H:%M") if tender.end_time else "Не указана"}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-С вами свяжутся в ближайшее время для уточнения деталей и оформления договора.
-
-С уважением,
-Команда тендерной площадки'''
-        
-        html_message = f'''
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <style>
-                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-                .header {{ background-color: #28a745; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }}
-                .content {{ background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; }}
-                .details {{ background-color: white; padding: 15px; margin: 15px 0; border-left: 4px solid #28a745; }}
-                .detail-row {{ margin: 10px 0; }}
-                .detail-label {{ font-weight: bold; color: #555; }}
-                .detail-value {{ color: #28a745; font-size: 1.1em; }}
-                .footer {{ text-align: center; padding: 20px; color: #666; font-size: 0.9em; }}
-                .price {{ font-size: 1.3em; font-weight: bold; color: #28a745; }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <h1> Поздравляем с победой!</h1>
-                </div>
-                <div class="content">
-                    <p>Ваша компания <strong>"{winning_bid.company.name}"</strong> победила в тендере <strong>"{tender.name}"</strong>!</p>
-                    
-                    <div class="details">
-                        <div class="detail-row">
-                            <span class="detail-label">Тендер:</span>
-                            <span class="detail-value">{tender.name}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Направление:</span>
-                            <span class="detail-value">{direction.city_name}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Ваша выигрышная ставка:</span>
-                            <span class="detail-value price">{winning_bid.price:,.2f} руб.</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Объём:</span>
-                            <span class="detail-value">{direction.volume} машин</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Дата закрытия тендера:</span>
-                            <span class="detail-value">{tender.end_time.strftime("%d.%m.%Y %H:%M") if tender.end_time else "Не указана"}</span>
-                        </div>
-                    </div>
-                    
-                    <p style="background-color: #fff3cd; padding: 15px; border-left: 4px solid #ffc107; margin-top: 20px;">
-                        <strong>Важно:</strong> С вами свяжутся в ближайшее время для уточнения деталей и оформления договора.
-                    </p>
-                </div>
-                <div class="footer">
-                    <p>С уважением,<br>Команда тендерной площадки</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        '''
-        
-        email = EmailMultiAlternatives(
-            subject=subject,
-            body=text_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            to=[user_email],
-        )
-        email.attach_alternative(html_message, "text/html")
-        email.send(fail_silently=False)
-        
-        return True, f'Письмо отправлено победителю {winning_bid.company.name} ({user_email})'
+        from .tasks import send_winner_email_task
+        async_result = send_winner_email_task.delay(tender.id, direction.id, winning_bid.id)
+        return True, f"Отправка письма победителю {winning_bid.company.name} поставлена в очередь (task_id={async_result.id})"
     except Exception as e:
-        return False, f'Ошибка отправки победителю {tender.name}: {e}'
+        logger.exception("Failed to enqueue winner email task")
+        return False, f"Ошибка постановки в очередь: {e}"
 
 
-def send_tender_started_emails(tender):
+def send_tender_started_emails(tender, site_url=None):
     """
     Email всем потенциальным участникам о старте тендера.
+    Отправка происходит через Celery (асинхронно).
     """
-    subject = f'{settings.EMAIL_SUBJECT_PREFIX}Старт тендера "{tender.name}"'
+    logger.info(f"Queueing start emails for Tender {tender.id}")
+    # Считаем “сколько уйдёт” быстро (для вывода в UI), а сами письма шлём таской.
+    recipients_qs = (
+        User.objects.filter(is_active=True)
+        .exclude(email__isnull=True)
+        .exclude(email='')
+        .values('email')
+        .distinct()
+    )
+    queued = recipients_qs.count()
 
-    text_message = f'''Открыт тендер: {tender.name}
-Статус: {tender.get_status_display()}
-Количество направлений: {tender.directions.count()}
-
-Перейдите в систему для участия.
-'''
-
-    html_message = f'''
-    <!DOCTYPE html>
-    <html>
-    <head><meta charset="UTF-8"></head>
-    <body style="font-family: Arial, sans-serif; color: #333;">
-        <div style="max-width: 650px; margin: 0 auto; padding: 20px;">
-            <h2 style="margin: 0 0 12px 0;"> Открыт тендер: {tender.name}</h2>
-            <p style="margin: 0 0 10px 0;">Статус: <strong>{tender.get_status_display()}</strong></p>
-            <p style="margin: 0 0 10px 0;">Направлений: <strong>{tender.directions.count()}</strong></p>
-            <p style="margin: 16px 0 0 0;">Войдите в систему и сделайте ставку по интересующим направлениям.</p>
-        </div>
-    </body>
-    </html>
-    '''
-
-    recipients = set()
-    all_users_with_email = User.objects.filter(is_active=True).exclude(email='').values_list('email', flat=True)
-    for email in all_users_with_email:
-        if email:
-            recipients.add(email)
-
-    results = []
-    for email in recipients:
-        email = email.strip()
-        try:
-            msg = EmailMultiAlternatives(
-                subject=subject,
-                body=text_message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                to=[email],
-            )
-            msg.attach_alternative(html_message, "text/html")
-            msg.send(fail_silently=False)
-            results.append({'email': email, 'success': True, 'message': f'OK: {email}'})
-        except Exception as e:
-            results.append({'email': email, 'success': False, 'message': f'ERR: {email} — {e}'})
-
-    return results
+    try:
+        from .tasks import send_tender_started_emails_task
+        async_result = send_tender_started_emails_task.delay(tender.id, site_url=site_url or settings.SITE_URL)
+        return {
+            'queued': queued,
+            'task_id': getattr(async_result, 'id', None),
+            'message': f'Отправка {queued} писем поставлена в очередь (Celery)'
+        }
+    except Exception as e:
+        logger.exception("Failed to enqueue Celery task for tender started emails")
+        return {'queued': queued, 'task_id': None, 'message': f'Не удалось поставить рассылку в очередь: {e}'}

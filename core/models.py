@@ -63,6 +63,10 @@ class Tender(models.Model):
     # Настраиваемый финальный таймер (в минутах)
     final_timer_minutes = models.PositiveIntegerField(default=10, verbose_name='Финальный таймер (минуты)', 
                                                       help_text='Время без новых ставок до автоматического закрытия направления')
+    # Текст соглашения, который компания должна принять перед участием
+    agreement_text = models.TextField(blank=True, null=True, verbose_name='Текст соглашения для участия (галочка)')
+    # Текст, который увидит только победитель
+    winner_text = models.TextField(blank=True, null=True, verbose_name='Текст для победителя')
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -111,14 +115,6 @@ class Bid(models.Model):
     class Meta:
         verbose_name = 'Ставка'
         verbose_name_plural = 'Ставки'
-        constraints = [
-            # Одна АКТИВНАЯ ставка на направление в тендере от компании
-            models.UniqueConstraint(
-                fields=['tender', 'direction', 'company'],
-                condition=Q(is_active=True),
-                name='unique_active_bid_per_direction_company',
-            )
-        ]
         indexes = [
             models.Index(fields=['tender', 'direction', 'company', '-created_at']),
             models.Index(fields=['direction', 'is_active', 'price']),
@@ -179,3 +175,19 @@ class Winner(models.Model):
     
     def __str__(self):
         return f"{self.company.name} - {self.direction.city_name} - {self.price} ₽"
+
+
+# Модель для фиксации согласия компании с условиями тендера
+class TenderAgreement(models.Model):
+    tender = models.ForeignKey(Tender, on_delete=models.CASCADE, related_name='agreements', verbose_name='Тендер')
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='tender_agreements', verbose_name='Компания')
+    agreed_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата согласия')
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name='Кто подтвердил')
+
+    class Meta:
+        verbose_name = 'Согласие с условиями'
+        verbose_name_plural = 'Согласия с условиями'
+        unique_together = ('tender', 'company')
+
+    def __str__(self):
+        return f"{self.company.name} согласился с {self.tender.name} ({self.agreed_at.strftime('%d.%m.%y %H:%M')})"

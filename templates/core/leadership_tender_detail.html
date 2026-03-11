@@ -1,7 +1,6 @@
 {% extends 'core/base.html' %}
 {% block title %}Руководство — {{ tender.name }}{% endblock %}
-{% block breadcrumb_items %} > <a href="{% url 'leadership_dashboard' %}">Руководство</a> > <span>{{ tender.name
-    }}</span>{% endblock %}
+{% block breadcrumb_items %} > <a href="{% url 'leadership_dashboard' %}">Руководство</a> > <span>{{ tender.name}}</span>{% endblock %}
 {% block content %}
 
 <div class="d-flex align-items-start align-items-md-center justify-content-between flex-column flex-md-row gap-2 mb-4">
@@ -9,8 +8,7 @@
         <h1 class="h3 mb-1"><i class="bi bi-clipboard-data me-2"></i>{{ tender.name }}</h1>
         <div class="text-muted">
             Статус: <span class="badge bg-secondary">Завершён</span>
-            {% if tender.end_time %}<span class="ms-2">Закрыт: <strong>{{ tender.end_time|date:"d.m.Y H:i"
-                    }}</strong></span>{% endif %}
+            {% if tender.end_time %}<span class="ms-2">Закрыт: <strong>{{ tender.end_time|date:"d.m.Y H:i"}}</strong></span>{% endif %}
         </div>
         {% if tender.description %}
         <div class="text-muted mt-2">{{ tender.description }}</div>
@@ -49,8 +47,7 @@
                         <td>{{ d.volume }}</td>
                         <td class="d-none d-lg-table-cell">{{ d.start_price }} ₽</td>
                         <td>
-                            {% if d.final_price %}<strong class="text-success">{{ d.final_price }} ₽</strong>{% else
-                            %}-{% endif %}
+                            {% if d.final_price %}<strong class="text-success">{{ d.final_price }} ₽</strong>{% else %}-{% endif %}
                         </td>
                         <td>
                             {% if d.winner %}{{ d.winner.name }}{% else %}<span class="text-muted">-</span>{% endif %}

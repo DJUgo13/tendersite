@@ -1,15 +1,71 @@
-*.py[cod]
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
 *.so
-.venv/
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
 venv/
 ENV/
 env/
-.env
-db.sqlite3
+.venv
+
+# Django
 *.log
-staticfiles/
-media/
+local_settings.py
+db.sqlite3
+db.sqlite3-shm
+db.sqlite3-wal
+/staticfiles/
+/media/
+
+# Environment variables
+.env
+.env.local
+
+# IDE
 .idea/
 .vscode/
+*.swp
+*.swo
+*~
+
+# Дампы и временные файлы
+dump*.json
+db_dump.json
+data_migration.json
+mysql_dump.sql
+email_check_report.txt
+*.sql
+
+# Бинарники
+ngrok.exe
+*.exe
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Logs
+logs/
+*.log

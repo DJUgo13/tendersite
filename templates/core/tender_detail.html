@@ -121,6 +121,14 @@
         </li>
         {% endfor %}
     </ul>
+    {% if tender.winner_text %}
+    <div class="mt-3 p-3 bg-white bg-opacity-25 rounded border border-white border-opacity-50">
+        <h6 class="fw-bold mb-2">Дополнительная информация для победителя:</h6>
+        <div class="winner-specific-content">
+            {{ tender.winner_text|linebreaks }}
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% elif tender.status == 'closed' %}
 <div class="alert alert-secondary mb-3 mb-md-4">
@@ -181,6 +189,11 @@
                         {% if direction.is_winner_for_me and tender.status == 'closed' %}
                         <span class="badge bg-success ms-2">Вы победили</span>
                         {% endif %}
+                        <button class="btn btn-link btn-sm p-0 ms-2"
+                            hx-get="{% url 'get_my_bid_history' direction.id %}" hx-target="#history-content"
+                            data-bs-toggle="modal" data-bs-target="#historyModal">
+                            <i class="bi bi-clock-history"></i>
+                        </button>
                         {% else %}
                         <span class="text-muted">Нет ставки</span>
                         {% endif %}
@@ -248,6 +261,11 @@
                         {% if direction.is_winner_for_me and tender.status == 'closed' %}
                         <span class="badge bg-success ms-2">Вы победили</span>
                         {% endif %}
+                        <button class="btn btn-link btn-sm ms-2" hx-get="{% url 'get_my_bid_history' direction.id %}"
+                            hx-target="#history-content" data-bs-toggle="modal" data-bs-target="#historyModal"
+                            title="История моих ставок">
+                            <i class="bi bi-clock-history"></i>
+                        </button>
                         {% else %}
                         <span class="text-muted">Нет ставки</span>
                         {% endif %}
@@ -307,19 +325,11 @@
                         </div>
                         <input type="hidden" name="direction_id" id="modal-direction-id">
 
-                        <!-- Быстрые кнопки для изменения цены -->
+                        <!-- Быстрые кнопки удаления для упрощения -->
                         <div class="d-flex gap-2 mt-3">
-                            <button type="button" class="btn btn-outline-secondary flex-fill"
-                                onclick="adjustPrice(-0.05)" style="min-height: 44px;">
-                                <i class="bi bi-dash-circle me-1"></i>-5%
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary flex-fill"
-                                onclick="adjustPrice(-0.10)" style="min-height: 44px;">
-                                <i class="bi bi-dash-circle me-1"></i>-10%
-                            </button>
                             <button type="button" class="btn btn-outline-secondary flex-fill" onclick="resetPrice()"
                                 style="min-height: 44px;">
-                                <i class="bi bi-arrow-counterclockwise me-1"></i>Сброс
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>Очистить поле
                             </button>
                         </div>
 
@@ -341,9 +351,86 @@
     </div>
 </div>
 
+<!-- Модальное окно истории ставок -->
+<div class="modal fade" id="historyModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-clock-history me-2"></i>История ставок</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0" id="history-content">
+                <div class="p-3 text-center text-muted">
+                    <div class="spinner-border spinner-border-sm" role="status"></div> Загрузка...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно принятия условий (не закрываемое) -->
+{% if tender.agreement_text and not has_agreed %}
+<div class="modal fade" id="agreementModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
+    aria-labelledby="agreementModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="agreementModalLabel">
+                    <i class="bi bi-file-earmark-check me-2"></i>Согласие на участие в тендере
+                </h5>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-4">
+                    <h6 class="fw-bold mb-3">Пожалуйста, ознакомьтесь с условиями участия:</h6>
+                    <div class="p-3 bg-light rounded border"
+                        style="max-height: 400px; overflow-y: auto; white-space: pre-wrap;">{{ tender.agreement_text }}
+                    </div>
+                </div>
+
+                <form id="agreement-form" method="post" action="{% url 'agree_to_tender' tender.id %}">
+                    {% csrf_token %}
+                    <div class="form-check mb-4">
+                        <input class="form-check-input" type="checkbox" id="agree-checkbox" required>
+                        <label class="form-check-label fw-semibold" for="agree-checkbox">
+                            Я подтверждаю, что ознакомлен(а) с текстом и принимаю данные условия
+                        </label>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg" id="confirm-agreement-btn" disabled>
+                            Принять условия и продолжить
+                        </button>
+                        <a href="{% url 'manager_dashboard' %}" class="btn btn-link text-muted">Вернуться к списку
+                            тендеров</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
 <script>
     // JavaScript для работы с торгами (SSE, модальное окно, таймеры)
     (function () {
+        // Логика для согласия с условиями
+        const agreementModalEl = document.getElementById('agreementModal');
+        if (agreementModalEl) {
+            const agreementModal = new bootstrap.Modal(agreementModalEl);
+            agreementModal.show();
+
+            const checkbox = document.getElementById('agree-checkbox');
+            const submitBtn = document.getElementById('confirm-agreement-btn');
+
+            if (checkbox && submitBtn) {
+                checkbox.addEventListener('change', function () {
+                    submitBtn.disabled = !this.checked;
+                });
+            }
+        }
+
         const bidModal = document.getElementById('bidModal');
         const priceInput = document.getElementById('bid-price-input');
         const hint = document.getElementById('price-hint');
@@ -356,55 +443,61 @@
         };
 
         // Экспонируем функции для onclick в HTML
-        window.adjustPrice = function (percent) {
-            if (!state.bestPrice) return;
-            const currentVal = parseFloat(priceInput.value) || state.bestPrice;
-            const newPrice = parseFloat((currentVal * (1 + percent)).toFixed(2));
-            if (newPrice > 0 && newPrice <= state.bestPrice) {
-                priceInput.value = newPrice.toFixed(2);
+        window.resetPrice = function () {
+            if (priceInput) {
+                priceInput.value = '';
                 updatePriceHint();
             }
-        };
-
-        window.resetPrice = function () {
-            priceInput.value = '';
-            updatePriceHint();
         };
 
         function updatePriceHint() {
             if (!priceInput || !hint) return;
             const price = parseFloat(priceInput.value);
+            const submitBtn = bidModal.querySelector('button[type="submit"]');
+
             if (!price) {
                 hint.textContent = 'Текущая лучшая цена: ' + (state.bestPrice ? state.bestPrice.toFixed(2) : '---') + ' ₽';
+                if (submitBtn) submitBtn.disabled = true;
                 return;
             }
             if (price > state.bestPrice) {
-                hint.innerHTML = '<span class="text-danger">Цена должна быть не выше ' + state.bestPrice.toFixed(2) + ' ₽</span>';
+                hint.innerHTML = '<span class="text-danger">Цена должна быть НЕ ВЫШЕ текущей лучшей цены (' + state.bestPrice.toFixed(2) + ' ₽)</span>';
+                if (submitBtn) submitBtn.disabled = true;
             } else {
                 const diff = ((state.bestPrice - price) / state.bestPrice * 100).toFixed(1);
-                hint.innerHTML = 'Экономия: ' + (state.bestPrice - price).toFixed(2) + ' ₽ (' + diff + '%)';
+                hint.innerHTML = '<span class="text-success">Экономия: ' + (state.bestPrice - price).toFixed(2) + ' ₽ (' + diff + '%)</span>';
+                if (submitBtn) submitBtn.disabled = false;
             }
         }
 
         if (bidModal) {
             bidModal.addEventListener('show.bs.modal', function (event) {
                 const button = event.relatedTarget;
+                if (!button) return;
+
                 state.activeDirectionId = button.getAttribute('data-direction-id');
                 state.startPrice = parseFloat(button.getAttribute('data-start-price'));
                 state.bestPrice = parseFloat(button.getAttribute('data-best-price')) || state.startPrice;
 
-                document.getElementById('modal-direction-id').value = state.activeDirectionId;
-                document.getElementById('modal-direction-name').textContent = button.getAttribute('data-direction-name');
+                const dirIdInput = document.getElementById('modal-direction-id');
+                const dirNameSpan = document.getElementById('modal-direction-name');
 
-                priceInput.value = '';
-                priceInput.placeholder = 'Макс: ' + state.bestPrice.toFixed(2) + ' ₽';
-                updatePriceHint();
+                if (dirIdInput) dirIdInput.value = state.activeDirectionId;
+                if (dirNameSpan) dirNameSpan.textContent = button.getAttribute('data-direction-name');
+
+                if (priceInput) {
+                    priceInput.value = '';
+                    priceInput.placeholder = 'Макс: ' + state.bestPrice.toFixed(2) + ' ₽';
+                    updatePriceHint();
+                }
             });
 
             bidModal.addEventListener('shown.bs.modal', function () {
-                priceInput.focus();
-                if (/Mobile|Android|iPhone|iPad/.test(navigator.userAgent)) {
-                    setTimeout(() => priceInput.focus(), 300);
+                if (priceInput) {
+                    priceInput.focus();
+                    if (/Mobile|Android|iPhone|iPad/.test(navigator.userAgent)) {
+                        setTimeout(() => priceInput.focus(), 300);
+                    }
                 }
             });
 
@@ -420,7 +513,6 @@
         // SSE обновление цен и таймеров
         (function () {
             if (!window.EventSource) return;
-            const tenderId = "{{ tender.id }}";
             const es = new EventSource("{% url 'sse_tender_prices' tender.id %}");
 
             function fmtCountdown(endIso) {
@@ -440,19 +532,16 @@
                     if (!data || data.type !== 'prices') return;
 
                     data.directions.forEach((d) => {
-                        // Обновляем цены в таблице/карточках
                         const desktopValueEl = document.getElementById(`best-price-value-${d.id}`);
                         const mobileEl = document.getElementById(`best-price-mobile-${d.id}`);
                         if (desktopValueEl) desktopValueEl.innerHTML = `<span class="best-price">${d.best_price} ₽</span>`;
                         if (mobileEl) mobileEl.textContent = `${d.best_price} ₽`;
 
-                        // Синхронизация с открытым модальным окном
                         if (state.activeDirectionId == d.id) {
                             state.bestPrice = parseFloat(d.best_price);
                             updatePriceHint();
                         }
 
-                        // Обновляем бейджи и таймеры
                         const rebidBadge = document.getElementById(`rebid-badge-${d.id}`);
                         const rebidTimer = document.getElementById(`rebid-timer-${d.id}`);
                         const finalBadge = document.getElementById(`final-badge-${d.id}`);
@@ -483,7 +572,6 @@
             };
         })();
 
-        // Таймер до окончания тендера
         const timerElement = document.getElementById('tender-timer');
         if (timerElement) {
             const endTimeStr = timerElement.getAttribute('data-end-time');
@@ -512,7 +600,6 @@
             setInterval(updateTenderTimer, 1000);
         }
 
-        // Swipe navigation для мобильных карточек направлений
         (function () {
             if (!/Mobile|Android|iPhone|iPad/.test(navigator.userAgent)) return;
             const container = document.querySelector('.directions-container');

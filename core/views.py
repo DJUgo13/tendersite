@@ -1,11 +1,12 @@
 from django.contrib.auth.models import User
+from django.db import models
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.utils import timezone
-from django.core.mail import send_mail, EmailMultiAlternatives
+from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.http import HttpResponse, JsonResponse, StreamingHttpResponse
@@ -14,7 +15,7 @@ import json
 import openpyxl
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, Alignment, PatternFill
-from .models import Direction, Bid, Tender, Company, UserProfile, AuditLog, Winner
+from .models import Direction, Bid, Tender, Company, UserProfile, AuditLog, Winner, TenderAgreement
 from .utils import (
     log_action,
     get_user_role,
@@ -144,6 +145,11 @@ def tender_detail(request, tender_id):
         messages.error(request, 'У вашего аккаунта нет привязанной компании.')
         return redirect('manager_dashboard')
     
+    # ПРОВЕРКА СОГЛАСИЯ С УСЛОВИЯМИ
+    has_agreed = True
+    if tender.agreement_text:
+        has_agreed = TenderAgreement.objects.filter(tender=tender, company=user_company).exists()
+    
     user_won_any = False
     user_won_directions = []
 
@@ -177,7 +183,31 @@ def tender_detail(request, tender_id):
         'directions': directions,
         'user_won_any': user_won_any,
         'user_won_directions': user_won_directions,
+        'has_agreed': has_agreed,
     })
+
+
+@manager_required
+def agree_to_tender(request, tender_id):
+    """Принятие условий тендера компанией"""
+    tender = get_object_or_404(Tender, id=tender_id)
+    
+    try:
+        user_company = request.user.company
+    except Company.DoesNotExist:
+        messages.error(request, 'У вашего аккаунта нет привязанной компании.')
+        return redirect('manager_dashboard')
+        
+    if request.method == 'POST':
+        # Создаем запись о согласии
+        TenderAgreement.objects.get_or_create(
+            tender=tender,
+            company=user_company,
+            defaults={'user': request.user}
+        )
+        messages.success(request, f'Вы успешно приняли условия тендера "{tender.name}". Теперь вы можете делать ставки.')
+        
+    return redirect('tender_detail', tender_id=tender.id)
 
 
 @manager_required
@@ -186,6 +216,63 @@ def get_best_price(request, direction_id):
     direction = get_object_or_404(Direction, id=direction_id)
     return render(request, 'core/partials/best_price.html', {
         'best_price': direction.current_best_price
+    })
+
+
+@manager_required
+def get_my_bid_history(request, direction_id):
+    """API endpoint для получения истории своих ставок по направлению"""
+    direction = get_object_or_404(Direction, id=direction_id)
+    try:
+        user_company = request.user.company
+    except Company.DoesNotExist:
+        return HttpResponse("Нет компании", status=403)
+        
+    bids = Bid.objects.filter(
+        direction=direction, 
+        company=user_company
+    ).order_by('-created_at')
+    
+    return render(request, 'core/partials/bid_history.html', {
+        'bids': bids,
+        'direction': direction
+    })
+
+
+@manager_required
+def get_company_stats(request):
+    """API endpoint для получения статистики компании менеджера"""
+    try:
+        company = request.user.company
+    except Company.DoesNotExist:
+        return HttpResponse("Компания не найдена", status=404)
+
+    # 1. Всего тендеров, в которых участвовали (делали ставки)
+    tenders_participated = Bid.objects.filter(company=company).values('tender').distinct().count()
+
+    # 2. Всего сделано ставок
+    total_bids = Bid.objects.filter(company=company).count()
+
+    # 3. Количество выигранных направлений
+    directions_won = Direction.objects.filter(winner=company, tender__status='closed').count()
+
+    # 4. Общая сумма выигрыша
+    total_win_amount = Direction.objects.filter(winner=company, tender__status='closed').aggregate(
+        total=models.Sum('final_price')
+    )['total'] or 0
+
+    # 5. Активные ставки (в открытых тендерах)
+    active_bids_count = Bid.objects.filter(company=company, tender__status='open', is_active=True).count()
+
+    return render(request, 'core/partials/company_stats.html', {
+        'company': company,
+        'stats': {
+            'tenders_participated': tenders_participated,
+            'total_bids': total_bids,
+            'directions_won': directions_won,
+            'total_win_amount': total_win_amount,
+            'active_bids_count': active_bids_count,
+        }
     })
 
 
@@ -219,6 +306,12 @@ def submit_bid(request):
     if direction.tender.status != 'open':
         messages.error(request, 'Тендер закрыт, ставки не принимаются.')
         return redirect('tender_detail', tender_id=direction.tender.id)
+
+    # Проверка: компания должна согласиться с условиями
+    if direction.tender.agreement_text:
+        if not TenderAgreement.objects.filter(tender=direction.tender, company=user_company).exists():
+            messages.error(request, 'Вы должны принять условия тендера перед тем как делать ставки.')
+            return redirect('tender_detail', tender_id=direction.tender.id)
 
     # Проверка: цена должна быть числом и выше 0
     try:
@@ -290,11 +383,11 @@ def submit_bid(request):
     direction.current_best_price = price
     direction.save()
     
-    # Обновляем финальный таймер
-    update_final_timer(direction)
-    
-    # Проверяем переторжку
+    # Проверяем переторжку (если tiebroken, сбросит флаг)
     check_and_handle_rebidding(direction)
+    
+    # Обновляем финальный таймер (сработает, если НЕ в переторжке)
+    update_final_timer(direction)
 
     # Логируем действие
     action = 'bid_created' if not old_bid else 'bid_updated'
@@ -380,6 +473,7 @@ def close_tender_and_notify_winners(tender, set_end_time=True, request=None):
     
     # Определяем победителей по каждому направлению и отправляем письма
     results = []
+    from .utils import send_winner_email
     for direction in tender.directions.all():
         # Находим минимальную ставку среди активных
         winning_bid = direction.bids.filter(is_active=True).order_by('price', 'created_at').first()
@@ -389,10 +483,9 @@ def close_tender_and_notify_winners(tender, set_end_time=True, request=None):
             direction.winner = winning_bid.company
             direction.final_price = winning_bid.price
             direction.current_best_price = winning_bid.price
-            direction.save()
             
-            # Создаём запись в Winner для истории
-            Winner.objects.update_or_create(
+            # Отправляем email победителю (если ещё не отправляли)
+            winner_record, created = Winner.objects.update_or_create(
                 tender=tender,
                 direction=direction,
                 defaults={
@@ -401,14 +494,23 @@ def close_tender_and_notify_winners(tender, set_end_time=True, request=None):
                 }
             )
             
-            # Отправляем email победителю
-            success, message = send_winner_email(tender, direction, winning_bid)
-            results.append({
-                'direction': direction,
-                'winner': winning_bid.company,
-                'success': success,
-                'message': message
-            })
+            # Если создано - значит это "первичная" фиксация результата, шлём письмо
+            if created:
+                success, message = send_winner_email(tender, direction, winning_bid)
+                results.append({
+                    'direction': direction,
+                    'winner': winning_bid.company,
+                    'success': success,
+                    'message': message
+                })
+            else:
+                # Результат уже был зафиксирован
+                results.append({
+                    'direction': direction,
+                    'winner': winning_bid.company,
+                    'success': True,
+                    'message': f"Уведомление для {direction.city_name} уже было отправлено ранее."
+                })
     
     return results
 
@@ -460,27 +562,34 @@ def open_tender(request, tender_id):
         tender.start_time = timezone.now()
     tender.save()
 
+    # Инициализируем таймеры направлений
+    from .utils import initialize_direction_timers
+    initialize_direction_timers(tender)
+
     log_action(request.user, 'tender_opened', 'tender', tender.id, {'name': tender.name}, request)
 
-    results = send_tender_started_emails(tender)
-    ok = sum(1 for r in results if r['success'])
-    fail = len(results) - ok
+    base_url = request.build_absolute_uri('/')
+    send_info = send_tender_started_emails(tender, site_url=base_url)
     
     is_smtp = settings.EMAIL_BACKEND == 'django.core.mail.backends.smtp.EmailBackend'
     msg_type = 'отправлено' if is_smtp else 'выведено в консоль (SMTP не настроен)'
     
     messages.success(request, f'Тендер "{tender.name}" успешно открыт.')
-    messages.info(request, f'Рассылка ({msg_type}): успешно {ok}, ошибок {fail}.')
+    queued = send_info.get('queued') if isinstance(send_info, dict) else None
+    if queued is not None:
+        task_id = send_info.get('task_id') if isinstance(send_info, dict) else None
+        extra = f' task_id={task_id}' if task_id else ''
+        messages.info(request, f'Рассылка ({msg_type}): поставлено в очередь {queued}.{extra}')
+        if queued == 0:
+            messages.warning(request, 'Получателей 0: проверьте, что у пользователей заполнено поле email и пользователь активен.')
+        if not settings.CELERY_TASK_ALWAYS_EAGER:
+            messages.info(request, 'Важно: для реальной отправки должен быть запущен Celery worker (на Windows: `celery -A tendersite worker -l info -P solo`).')
+    else:
+        # На случай старого формата результата
+        messages.info(request, f'Рассылка ({msg_type}) запущена.')
     
     if not settings.EMAIL_CONFIGURED and settings.EMAIL_MODE == 'production':
         messages.error(request, 'КРИТИЧНО: Почта не настроена в settings.py! Письма не ушли.')
-
-    # Показываем детальный лог (до 10 записей)
-    for r in results[:10]:
-        icon = "✅" if r['success'] else "❌"
-        messages.debug(request, f"{icon} {r['message']}")
-        if not r['success']:
-            messages.warning(request, f"Ошибка отправки на {r['email']}: {r['message']}")
 
     return redirect('admin:core_tender_changelist')
 
@@ -600,10 +709,10 @@ def _build_tender_matrix_excel_response(tender):
     ws.title = f"Матрица {tender.name[:20]}"
 
     # Стили
-    header_fill = PatternFill(start_color="000000", end_color="000000", fill_type="solid")  # Черный фон
-    header_font = Font(bold=True, color="FFFFFF", size=11)  # Белый текст
-    border_style = openpyxl.styles.Side(border_style="thin", color="FFFFFF")
-    white_border = openpyxl.styles.Border(top=border_style, left=border_style, right=border_style, bottom=border_style)
+    header_font = Font(bold=True, size=11)  # Жирный текст для заголовков
+    data_font = Font(size=11)  # Обычный текст для данных
+    border_style = openpyxl.styles.Side(border_style="thin", color="000000")
+    data_border = openpyxl.styles.Border(top=border_style, left=border_style, right=border_style, bottom=border_style)
     
     # Данные
     directions = list(tender.directions.all().order_by('id'))
@@ -614,21 +723,20 @@ def _build_tender_matrix_excel_response(tender):
     # 1. Заголовок
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(directions) + 1)
     ws['A1'] = f"{tender.name}"
-    ws['A1'].font = Font(bold=True, color="FFFFFF", size=14)
-    ws['A1'].fill = header_fill
+    ws['A1'].font = Font(bold=True, size=14)
+    ws['A1'].alignment = Alignment(horizontal='center')
     
     # 2. Шапка (Города)
-    # A2 - пусто (или "Компания"), B2.. - Города
-    ws.cell(row=2, column=1).value = ""  # Угловая ячейка
-    ws.cell(row=2, column=1).fill = header_fill
+    ws.cell(row=2, column=1).value = "Компания"
+    ws.cell(row=2, column=1).font = header_font
+    ws.cell(row=2, column=1).border = data_border
     
     col_idx = 2
     for direction in directions:
         cell = ws.cell(row=2, column=col_idx)
         cell.value = direction.city_name
-        cell.fill = header_fill
         cell.font = header_font
-        cell.border = white_border
+        cell.border = data_border
         col_idx += 1
         
     # 3. Строки (Компании)
@@ -637,9 +745,8 @@ def _build_tender_matrix_excel_response(tender):
         # Имя компании
         c_cell = ws.cell(row=row_idx, column=1)
         c_cell.value = company.name
-        c_cell.fill = header_fill # Компания тоже на черном фоне, как в примере
         c_cell.font = header_font
-        c_cell.border = white_border
+        c_cell.border = data_border
         
         col_idx = 2
         for direction in directions:
@@ -651,13 +758,11 @@ def _build_tender_matrix_excel_response(tender):
             ).order_by('price').first()
             
             val_cell = ws.cell(row=row_idx, column=col_idx)
-            val_cell.fill = header_fill # Весь фон черный
-            val_cell.font = header_font
-            val_cell.border = white_border
+            val_cell.font = data_font
+            val_cell.border = data_border
             
             if best_bid:
                 val_cell.value = float(best_bid.price)
-                # Формат чисел (без .00 если целое, иначе с копейками) (хотя в примере целые)
                 val_cell.number_format = '0' 
             else:
                 val_cell.value = "-"

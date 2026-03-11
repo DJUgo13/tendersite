@@ -14,11 +14,12 @@
         <div class="text-muted">Аналитика цен и объемов по конкретным направлениям</div>
     </div>
 
-    <div class="d-flex align-items-center gap-2">
-        <form method="get" class="d-flex align-items-center gap-3">
-            <div class="d-flex align-items-center gap-2">
+    <div class="d-flex align-items-center gap-2 w-100 w-md-auto">
+        <form method="get" class="d-flex flex-wrap align-items-center gap-3 w-100">
+            <div class="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0">
                 <label for="year_select" class="form-label mb-0 fw-semibold text-nowrap">Год:</label>
-                <select name="year" id="year_select" class="form-select w-auto" onchange="this.form.submit()">
+                <select name="year" id="year_select" class="form-select w-auto flex-grow-1"
+                    onchange="this.form.submit()">
                     {% for year in available_years %}
                     <option value="{{ year }}" {% if year|is_same:selected_year %}selected{% endif %}>{{ year }}
                     </option>
@@ -26,9 +27,10 @@
                 </select>
             </div>
 
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0">
                 <label for="city_select" class="form-label mb-0 fw-semibold text-nowrap">Город:</label>
-                <select name="city" id="city_select" class="form-select w-auto" onchange="this.form.submit()">
+                <select name="city" id="city_select" class="form-select w-auto flex-grow-1"
+                    onchange="this.form.submit()">
                     <option value="">Выберите город</option>
                     {% for city in available_cities %}
                     <option value="{{ city }}" {% if city|is_same:selected_city %}selected{% endif %}>{{ city }}
@@ -37,9 +39,10 @@
                 </select>
             </div>
 
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0">
                 <label for="month_select" class="form-label mb-0 fw-semibold text-nowrap">Месяц:</label>
-                <select name="month" id="month_select" class="form-select w-auto" onchange="this.form.submit()">
+                <select name="month" id="month_select" class="form-select w-auto flex-grow-1"
+                    onchange="this.form.submit()">
                     <option value="">Весь год</option>
                     {% for num, name in month_names.items %}
                     <option value="{{ num }}" {% if num|is_same:selected_month %}selected{% endif %}>{{ name }}</option>
@@ -95,8 +98,8 @@
 </div>
 {% endif %}
 
-<div class="text-center mb-4">
-    <a href="{% url 'leadership_statistics' %}" class="btn btn-outline-secondary">
+<div class="text-center mb-4 px-3 px-md-0">
+    <a href="{% url 'leadership_statistics' %}" class="btn btn-outline-secondary w-100 w-md-auto">
         <i class="bi bi-arrow-left me-2"></i>Вернуться к общей статистике
     </a>
 </div>
